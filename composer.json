@@ -1,0 +1,42 @@
+{
+    "name": "balerka/laravel-react-payments",
+    "description": "Reusable Laravel + React payments foundation with cards, products, orders, transactions, subscriptions, and Inertia-friendly endpoints.",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Balerka\\LaravelReactPayments\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Balerka\\LaravelReactPayments\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": "^8.3",
+        "illuminate/contracts": "^11.0|^12.0|^13.0",
+        "illuminate/database": "^11.0|^12.0|^13.0",
+        "illuminate/http": "^11.0|^12.0|^13.0",
+        "illuminate/routing": "^11.0|^12.0|^13.0",
+        "inertiajs/inertia-laravel": "^1.0|^2.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.0",
+        "orchestra/testbench": "^9.0|^10.0|^11.0",
+        "phpunit/phpunit": "^11.0|^12.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Balerka\\LaravelReactPayments\\PaymentsServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "format": "vendor/bin/pint"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
