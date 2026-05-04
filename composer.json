@@ -1,16 +1,16 @@
 {
-    "name": "balerka/laravel-react-payments",
-    "description": "Reusable Laravel + React payments foundation with cards, products, orders, transactions, subscriptions, and Inertia-friendly endpoints.",
+    "name": "balerka/laravel-payhub",
+    "description": "Reusable Laravel payment foundation with headless endpoints and optional React/Inertia screens.",
     "type": "library",
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Balerka\\LaravelReactPayments\\": "src/"
+            "Balerka\\LaravelPayhub\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Balerka\\LaravelReactPayments\\Tests\\": "tests/"
+            "Balerka\\LaravelPayhub\\Tests\\": "tests/"
         }
     },
     "require": {
@@ -18,8 +18,7 @@
         "illuminate/contracts": "^11.0|^12.0|^13.0",
         "illuminate/database": "^11.0|^12.0|^13.0",
         "illuminate/http": "^11.0|^12.0|^13.0",
-        "illuminate/routing": "^11.0|^12.0|^13.0",
-        "inertiajs/inertia-laravel": "^1.0|^2.0"
+        "illuminate/routing": "^11.0|^12.0|^13.0"
     },
     "require-dev": {
         "laravel/pint": "^1.0",
@@ -29,9 +28,12 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Balerka\\LaravelReactPayments\\PaymentsServiceProvider"
+                "Balerka\\LaravelPayhub\\PayhubServiceProvider"
             ]
         }
+    },
+    "suggest": {
+        "inertiajs/inertia-laravel": "Required only when payhub.frontend is set to react."
     },
     "scripts": {
         "test": "vendor/bin/phpunit",

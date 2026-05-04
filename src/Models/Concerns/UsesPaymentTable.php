@@ -1,11 +1,11 @@
 <?php
 
-namespace Balerka\LaravelReactPayments\Models\Concerns;
+namespace Balerka\LaravelPayhub\Models\Concerns;
 
 trait UsesPaymentTable
 {
     public function getTable(): string
     {
-        return (string) config("payments.tables.{$this->paymentTableKey}", parent::getTable());
+        return (string) config("payhub.tables.{$this->paymentTableKey}", parent::getTable());
     }
 }

@@ -1,13 +1,13 @@
 <?php
 
-namespace Balerka\LaravelReactPayments\Http\Controllers;
+namespace Balerka\LaravelPayhub\Http\Controllers;
 
-use Balerka\LaravelReactPayments\Http\Requests\TestPaymentRequest;
-use Balerka\LaravelReactPayments\Models\Card;
-use Balerka\LaravelReactPayments\Models\Order;
-use Balerka\LaravelReactPayments\Models\Product;
-use Balerka\LaravelReactPayments\Models\Subscription;
-use Balerka\LaravelReactPayments\Models\Transaction;
+use Balerka\LaravelPayhub\Http\Requests\TestPaymentRequest;
+use Balerka\LaravelPayhub\Models\Card;
+use Balerka\LaravelPayhub\Models\Order;
+use Balerka\LaravelPayhub\Models\Product;
+use Balerka\LaravelPayhub\Models\Subscription;
+use Balerka\LaravelPayhub\Models\Transaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -129,8 +129,8 @@ class TestPaymentsController
 
     private function fee(float $amount): float
     {
-        $commission = (float) config('payments.gateways.test.commission', 0);
-        $vat = (float) config('payments.gateways.test.vat', 1);
+        $commission = (float) config('payhub.gateways.test.commission', 0);
+        $vat = (float) config('payhub.gateways.test.vat', 1);
 
         return round($amount * $commission * $vat, 2);
     }

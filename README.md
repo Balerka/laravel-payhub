@@ -1,22 +1,21 @@
-# Laravel + React Payments
+# Laravel Payhub
 
-Reusable payment foundation for Laravel applications with React/Inertia frontends.
+Reusable payment foundation for Laravel applications.
 
 It provides:
 
 - Laravel models for cards, products, orders, transactions, and subscriptions.
 - Migrations and configurable table names.
-- Auth-protected card management endpoints.
+- Auth-protected JSON endpoints for custom frontends.
+- Optional React/Inertia card management screen.
 - A local test payment endpoint for development.
-- Publishable React components and hooks for a cards screen.
 
 ## Install
 
 ```bash
-composer require balerka/laravel-react-payments
-php artisan vendor:publish --tag=payments-config
-php artisan vendor:publish --tag=payments-migrations
-php artisan vendor:publish --tag=payments-react
+composer require balerka/laravel-payhub
+php artisan vendor:publish --tag=payhub-config
+php artisan vendor:publish --tag=payhub-migrations
 php artisan migrate
 ```
 
@@ -27,7 +26,7 @@ For local development from this repository:
   "repositories": [
     {
       "type": "path",
-      "url": "../laravel-react-payments"
+      "url": "../laravel-payhub"
     }
   ]
 }
@@ -36,45 +35,68 @@ For local development from this repository:
 Then run:
 
 ```bash
-composer require balerka/laravel-react-payments:@dev
+composer require balerka/laravel-payhub:@dev
 ```
 
-## Routes
+## Frontend Modes
 
-Routes are registered with the `payments.` name prefix:
+Laravel Payhub is headless by default:
 
-- `GET /cards` renders the Inertia cards page.
-- `GET /cards/data` returns cards as JSON.
-- `PUT /cards/default` sets the default card.
-- `DELETE /cards/{card}` deletes a card owned by the current user.
-- `POST /payments/test/pay` creates a local test payment when `payments.test_mode=true`.
+```dotenv
+PAYHUB_FRONTEND=headless
+```
 
-## React
+Use this mode when you want to connect your own Blade, Vue, React, mobile app, or any other UI to the JSON endpoints.
+
+To use the included React/Inertia screen:
+
+```bash
+composer require inertiajs/inertia-laravel
+php artisan vendor:publish --tag=payhub-react
+```
+
+Then set:
+
+```dotenv
+PAYHUB_FRONTEND=react
+```
 
 The React files publish to:
 
 ```text
-resources/js/payments
+resources/js/payhub
 ```
 
-They are intentionally dependency-light: React, axios, `@inertiajs/react`, and Tailwind classes.
-
-In an Inertia app, make sure the published page is resolvable by your page loader. With the default Laravel/Inertia setup, publishing to `resources/js/payments/pages/cards.tsx` pairs with this config value:
+In an Inertia app, make sure the published page is resolvable by your page loader. With the default Laravel/Inertia setup, publishing to `resources/js/payhub/pages/cards.tsx` pairs with this config value:
 
 ```php
-'cards_page' => 'payments/pages/cards',
+'cards_page' => 'payhub/pages/cards',
 ```
+
+## Routes
+
+Routes are registered with the `payhub.` name prefix and use `/payhub` as the default URL prefix:
+
+- `GET /payhub/cards/data` returns cards as JSON.
+- `PUT /payhub/cards/default` sets the default card.
+- `DELETE /payhub/cards/{card}` deletes a card owned by the current user.
+- `POST /payhub/payments/test/pay` creates a local test payment when `payhub.test_mode=true`.
+- `GET /payhub/cards` renders the React/Inertia cards page only when `PAYHUB_FRONTEND=react`.
+
+For a custom frontend, call the JSON endpoints directly and send `Accept: application/json` when you want JSON responses from mutation endpoints.
 
 ## Configuration
 
-`config/payments.php` controls route middleware, page name, table names, user model, test mode, and gateway metadata.
+`config/payhub.php` controls frontend mode, route middleware, page name, table names, user model, test mode, and gateway metadata.
 
 To reuse the table names from an existing app, set:
 
 ```dotenv
-PAYMENTS_CARDS_TABLE=cards
-PAYMENTS_PRODUCTS_TABLE=products
-PAYMENTS_ORDERS_TABLE=orders
-PAYMENTS_TRANSACTIONS_TABLE=transactions
-PAYMENTS_SUBSCRIPTIONS_TABLE=subscriptions
+PAYHUB_CARDS_TABLE=cards
+PAYHUB_PRODUCTS_TABLE=products
+PAYHUB_ORDERS_TABLE=orders
+PAYHUB_TRANSACTIONS_TABLE=transactions
+PAYHUB_SUBSCRIPTIONS_TABLE=subscriptions
 ```
+
+The old `PAYMENTS_*` environment variables are still read as fallbacks where practical, but new projects should use `PAYHUB_*`.

@@ -17,9 +17,9 @@ type Endpoints = {
 };
 
 const defaultEndpoints: Endpoints = {
-    data: '/cards/data',
-    setDefault: '/cards/default',
-    destroy: (cardId) => `/cards/${cardId}`,
+    data: '/payhub/cards/data',
+    setDefault: '/payhub/cards/default',
+    destroy: (cardId) => `/payhub/cards/${cardId}`,
 };
 
 function formatBrand(brand: string): string {

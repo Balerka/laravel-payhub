@@ -1,11 +1,11 @@
 <?php
 
-namespace Balerka\LaravelReactPayments\Tests\Feature;
+namespace Balerka\LaravelPayhub\Tests\Feature;
 
-use Balerka\LaravelReactPayments\Models\Card;
-use Balerka\LaravelReactPayments\Models\Transaction;
-use Balerka\LaravelReactPayments\Tests\Fixtures\User;
-use Balerka\LaravelReactPayments\Tests\TestCase;
+use Balerka\LaravelPayhub\Models\Card;
+use Balerka\LaravelPayhub\Models\Transaction;
+use Balerka\LaravelPayhub\Tests\Fixtures\User;
+use Balerka\LaravelPayhub\Tests\TestCase;
 
 class TestPaymentsControllerTest extends TestCase
 {
@@ -14,7 +14,7 @@ class TestPaymentsControllerTest extends TestCase
         $user = User::query()->create(['name' => 'User']);
 
         $this->actingAs($user)
-            ->postJson('/payments/test/pay', [
+            ->postJson('/payhub/payments/test/pay', [
                 'amount' => 1200,
                 'card_token' => 'tok_test',
                 'card_last4' => '4242',

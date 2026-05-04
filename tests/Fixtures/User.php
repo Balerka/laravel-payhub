@@ -1,6 +1,6 @@
 <?php
 
-namespace Balerka\LaravelReactPayments\Tests\Fixtures;
+namespace Balerka\LaravelPayhub\Tests\Fixtures;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 

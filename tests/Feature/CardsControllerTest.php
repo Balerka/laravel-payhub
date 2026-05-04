@@ -1,10 +1,10 @@
 <?php
 
-namespace Balerka\LaravelReactPayments\Tests\Feature;
+namespace Balerka\LaravelPayhub\Tests\Feature;
 
-use Balerka\LaravelReactPayments\Models\Card;
-use Balerka\LaravelReactPayments\Tests\Fixtures\User;
-use Balerka\LaravelReactPayments\Tests\TestCase;
+use Balerka\LaravelPayhub\Models\Card;
+use Balerka\LaravelPayhub\Tests\Fixtures\User;
+use Balerka\LaravelPayhub\Tests\TestCase;
 
 class CardsControllerTest extends TestCase
 {
@@ -30,7 +30,7 @@ class CardsControllerTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->getJson('/cards/data')
+            ->getJson('/payhub/cards/data')
             ->assertOk()
             ->assertJsonPath('cards.0.last4', '4242')
             ->assertJsonCount(1, 'cards');
@@ -55,10 +55,38 @@ class CardsControllerTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->put('/cards/default', ['card_id' => $secondCard->id])
+            ->put('/payhub/cards/default', ['card_id' => $secondCard->id])
             ->assertRedirect();
 
         $this->assertFalse($firstCard->refresh()->is_default);
         $this->assertTrue($secondCard->refresh()->is_default);
+    }
+
+    public function test_user_can_set_default_card_with_json_response(): void
+    {
+        $user = User::query()->create(['name' => 'User']);
+        $card = Card::query()->create([
+            'user_id' => $user->id,
+            'token' => 'tok_card',
+            'last4' => '4242',
+            'brand' => 'visa',
+            'is_default' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->putJson('/payhub/cards/default', ['card_id' => $card->id])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertTrue($card->refresh()->is_default);
+    }
+
+    public function test_react_cards_page_is_disabled_in_headless_mode(): void
+    {
+        $user = User::query()->create(['name' => 'User']);
+
+        $this->actingAs($user)
+            ->get('/payhub/cards')
+            ->assertNotFound();
     }
 }

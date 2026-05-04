@@ -1,8 +1,8 @@
 <?php
 
-namespace Balerka\LaravelReactPayments\Models;
+namespace Balerka\LaravelPayhub\Models;
 
-use Balerka\LaravelReactPayments\Models\Concerns\UsesPaymentTable;
+use Balerka\LaravelPayhub\Models\Concerns\UsesPaymentTable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -47,6 +47,6 @@ class Transaction extends Model
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(config('payments.user_model'));
+        return $this->belongsTo(config('payhub.user_model'));
     }
 }

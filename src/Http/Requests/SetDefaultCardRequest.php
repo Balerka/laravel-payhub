@@ -1,8 +1,8 @@
 <?php
 
-namespace Balerka\LaravelReactPayments\Http\Requests;
+namespace Balerka\LaravelPayhub\Http\Requests;
 
-use Balerka\LaravelReactPayments\Models\Card;
+use Balerka\LaravelPayhub\Models\Card;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 

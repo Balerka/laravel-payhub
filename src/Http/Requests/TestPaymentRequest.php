@@ -1,9 +1,9 @@
 <?php
 
-namespace Balerka\LaravelReactPayments\Http\Requests;
+namespace Balerka\LaravelPayhub\Http\Requests;
 
-use Balerka\LaravelReactPayments\Models\Order;
-use Balerka\LaravelReactPayments\Models\Product;
+use Balerka\LaravelPayhub\Models\Order;
+use Balerka\LaravelPayhub\Models\Product;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -11,7 +11,7 @@ class TestPaymentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user() !== null && (bool) config('payments.test_mode');
+        return $this->user() !== null && (bool) config('payhub.test_mode');
     }
 
     public function rules(): array

@@ -1,14 +1,14 @@
 <?php
 
-namespace Balerka\LaravelReactPayments;
+namespace Balerka\LaravelPayhub;
 
 use Illuminate\Support\ServiceProvider;
 
-class PaymentsServiceProvider extends ServiceProvider
+class PayhubServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/payments.php', 'payments');
+        $this->mergeConfigFrom(__DIR__.'/../config/payhub.php', 'payhub');
     }
 
     public function boot(): void
@@ -17,15 +17,15 @@ class PaymentsServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
         $this->publishes([
-            __DIR__.'/../config/payments.php' => config_path('payments.php'),
-        ], 'payments-config');
+            __DIR__.'/../config/payhub.php' => config_path('payhub.php'),
+        ], 'payhub-config');
 
         $this->publishes([
             __DIR__.'/../database/migrations' => database_path('migrations'),
-        ], 'payments-migrations');
+        ], 'payhub-migrations');
 
         $this->publishes([
-            __DIR__.'/../resources/js' => resource_path('js/payments'),
-        ], 'payments-react');
+            __DIR__.'/../resources/js' => resource_path('js/payhub'),
+        ], 'payhub-react');
     }
 }

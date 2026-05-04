@@ -1,20 +1,24 @@
 <?php
 
-namespace Balerka\LaravelReactPayments\Http\Controllers;
+namespace Balerka\LaravelPayhub\Http\Controllers;
 
-use Balerka\LaravelReactPayments\Http\Requests\SetDefaultCardRequest;
-use Balerka\LaravelReactPayments\Models\Card;
+use Balerka\LaravelPayhub\Http\Requests\SetDefaultCardRequest;
+use Balerka\LaravelPayhub\Models\Card;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Inertia\Response;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class CardsController
 {
-    public function index(Request $request): Response
+    public function index(Request $request): mixed
     {
-        return Inertia::render(config('payments.cards_page', 'payments/pages/cards'), [
+        if (! class_exists(Inertia::class)) {
+            throw new NotFoundHttpException('Install inertiajs/inertia-laravel or set payhub.frontend=headless.');
+        }
+
+        return Inertia::render(config('payhub.cards_page', 'payhub/pages/cards'), [
             'cards' => $this->cards($request),
         ]);
     }
@@ -26,7 +30,7 @@ class CardsController
         ]);
     }
 
-    public function setDefault(SetDefaultCardRequest $request): RedirectResponse
+    public function setDefault(SetDefaultCardRequest $request): JsonResponse|RedirectResponse
     {
         $cardId = (int) $request->validated('card_id');
         $card = Card::query()
@@ -35,7 +39,7 @@ class CardsController
             ->first();
 
         if (! $card) {
-            return back();
+            return $this->emptyResponse($request);
         }
 
         Card::query()
@@ -44,13 +48,13 @@ class CardsController
 
         $card->update(['is_default' => true]);
 
-        return back();
+        return $this->emptyResponse($request);
     }
 
-    public function destroy(Request $request, Card $card): RedirectResponse
+    public function destroy(Request $request, Card $card): JsonResponse|RedirectResponse
     {
         if ((int) $card->user_id !== (int) $request->user()->id) {
-            return back();
+            return $this->emptyResponse($request);
         }
 
         $wasDefault = (bool) $card->is_default;
@@ -64,7 +68,7 @@ class CardsController
                 ?->update(['is_default' => true]);
         }
 
-        return back();
+        return $this->emptyResponse($request);
     }
 
     /**
@@ -84,5 +88,14 @@ class CardsController
             ])
             ->values()
             ->all();
+    }
+
+    private function emptyResponse(Request $request): JsonResponse|RedirectResponse
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return back();
     }
 }

@@ -1,5 +1,5 @@
 {
-    "name": "@balerka/laravel-react-payments",
+    "name": "@balerka/laravel-payhub-react",
     "version": "0.1.0",
     "private": true,
     "type": "module",
