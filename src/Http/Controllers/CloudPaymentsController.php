@@ -58,7 +58,7 @@ class CloudPaymentsController
                 'amount' => (float) $order->amount,
                 'fee' => $this->fee($request),
                 'status' => true,
-                'source' => 'CloudPayments',
+                'gateway' => 'CloudPayments',
             ],
         );
 

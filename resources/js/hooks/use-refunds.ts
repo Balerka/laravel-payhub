@@ -9,7 +9,7 @@ export type PayhubRefundTransaction = {
     fee: number;
     income: number;
     status: boolean;
-    source: string | null;
+    gateway: string | null;
     created_at: string | null;
     order: {
         id: number | null;

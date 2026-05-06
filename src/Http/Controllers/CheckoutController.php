@@ -143,7 +143,7 @@ class CheckoutController
                     'amount' => (float) $order->amount,
                     'fee' => (float) ($model['TotalFee'] ?? $response['TotalFee'] ?? 0),
                     'status' => true,
-                    'source' => 'CloudPayments',
+                    'gateway' => 'CloudPayments',
                 ],
             );
 
@@ -175,7 +175,7 @@ class CheckoutController
                 'amount' => (float) $order->amount,
                 'fee' => $this->testFee((float) $order->amount),
                 'status' => true,
-                'source' => 'TestSavedCard',
+                'gateway' => 'TestSavedCard',
             ]);
 
             $order->update([

@@ -43,7 +43,7 @@ class TestPaymentRequest extends FormRequest
             'items.*.measurement_unit' => ['nullable', 'string', 'max:64'],
             'items.*.measurementUnit' => ['nullable', 'string', 'max:64'],
             'order_id' => ['nullable', 'integer', Rule::exists((new Order)->getTable(), 'id')],
-            'source' => ['nullable', 'string', 'max:255'],
+            'gateway' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'boolean'],
             'transaction_id' => ['nullable', 'string', 'max:255'],
             'card_token' => ['nullable', 'string', 'max:255'],

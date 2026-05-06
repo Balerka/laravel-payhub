@@ -103,7 +103,7 @@ class RefundsController
     }
 
     /**
-     * @return array{id: int, transaction_id: string|null, amount: float, fee: float, income: float, status: bool, source: string|null, created_at: string|null, order: array{id: int, status: string, amount: float, currency: string, description: string|null}|null}
+     * @return array{id: int, transaction_id: string|null, amount: float, fee: float, income: float, status: bool, gateway: string|null, created_at: string|null, order: array{id: int, status: string, amount: float, currency: string, description: string|null}|null}
      */
     private function transactionPayload(Transaction $transaction): array
     {
@@ -116,7 +116,7 @@ class RefundsController
             'fee' => (float) $transaction->fee,
             'income' => (float) $transaction->income,
             'status' => (bool) $transaction->status,
-            'source' => $transaction->source,
+            'gateway' => $transaction->gateway,
             'created_at' => $transaction->created_at?->toISOString(),
             'order' => $order ? [
                 'id' => $order->id,

@@ -20,7 +20,7 @@ class RefundsControllerTest extends TestCase
             'amount' => 990,
             'fee' => 39,
             'status' => true,
-            'source' => 'CloudPayments',
+            'gateway' => 'CloudPayments',
         ]);
         Order::query()->create([
             'user_id' => $user->id,
@@ -36,7 +36,7 @@ class RefundsControllerTest extends TestCase
             'amount' => 990,
             'fee' => 39,
             'status' => true,
-            'source' => 'CloudPayments',
+            'gateway' => 'CloudPayments',
         ]);
 
         $this->actingAs($user)
@@ -72,7 +72,7 @@ class RefundsControllerTest extends TestCase
             'amount' => 990,
             'fee' => 39,
             'status' => true,
-            'source' => 'CloudPayments',
+            'gateway' => 'CloudPayments',
         ]);
         $order = Order::query()->create([
             'user_id' => $user->id,

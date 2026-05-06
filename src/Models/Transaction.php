@@ -19,7 +19,7 @@ class Transaction extends Model
         'amount',
         'fee',
         'status',
-        'source',
+        'gateway',
     ];
 
     protected $appends = [

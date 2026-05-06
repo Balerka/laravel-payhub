@@ -16,7 +16,7 @@ return new class extends Migration
             $table->decimal('amount', 10, 2);
             $table->decimal('fee', 10, 2)->default(0);
             $table->boolean('status')->default(false);
-            $table->string('source')->nullable();
+            $table->string('gateway')->nullable();
             $table->timestamps();
 
             $table->index(['user_id', 'status']);

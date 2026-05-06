@@ -27,7 +27,7 @@ class TestPaymentsController
                 'amount' => $amount,
                 'fee' => $this->fee($amount),
                 'status' => $status,
-                'source' => $data['source'] ?? 'TestPayments',
+                'gateway' => $data['gateway'] ?? 'TestPayments',
             ]);
 
             $order = $this->resolveOrder($request->user()->id, $data, $transaction);
