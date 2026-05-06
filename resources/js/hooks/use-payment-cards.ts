@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { useCallback, useEffect, useState } from 'react';
 import { type PaymentCard } from '../components/payment-cards';
+import { type PayhubMessagesInput, resolvePayhubMessages } from '../translations';
 
 type CardsResponse = {
     cards?: PaymentCard[];
@@ -8,11 +9,16 @@ type CardsResponse = {
 
 export function usePaymentCards({
     enabled = true,
-    endpoint = '/cards/data',
+    endpoint = '/payhub/cards/data',
+    locale,
+    messages,
 }: {
     enabled?: boolean;
     endpoint?: string;
+    locale?: string;
+    messages?: PayhubMessagesInput;
 } = {}) {
+    const resolvedMessages = resolvePayhubMessages(messages, locale);
     const [cards, setCards] = useState<PaymentCard[]>([]);
     const [hasLoaded, setHasLoaded] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -28,11 +34,11 @@ export function usePaymentCards({
             const response = await axios.get<CardsResponse>(endpoint);
             setCards(response.data.cards ?? []);
         } catch {
-            setErrorMessage('Unable to load payment cards.');
+            setErrorMessage(resolvedMessages.cards.loadError);
         } finally {
             setHasLoaded(true);
         }
-    }, [enabled, endpoint]);
+    }, [enabled, endpoint, resolvedMessages.cards.loadError]);
 
     useEffect(() => {
         void loadCards();

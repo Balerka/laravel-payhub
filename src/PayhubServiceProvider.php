@@ -25,7 +25,12 @@ class PayhubServiceProvider extends ServiceProvider
         ], 'payhub-migrations');
 
         $this->publishes([
-            __DIR__.'/../resources/js' => resource_path('js/payhub'),
+            __DIR__.'/../resources/js' => resource_path('js/pages/payhub'),
         ], 'payhub-react');
+
+        $this->publishes([
+            __DIR__.'/../resources/js/locales/en/payhub.json' => resource_path('js/locales/en/payhub.json'),
+            __DIR__.'/../resources/js/locales/ru/payhub.json' => resource_path('js/locales/ru/payhub.json'),
+        ], 'payhub-locales');
     }
 }

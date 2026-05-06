@@ -3,7 +3,6 @@
 namespace Balerka\LaravelPayhub\Models;
 
 use Balerka\LaravelPayhub\Models\Concerns\UsesPaymentTable;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -16,7 +15,11 @@ class Subscription extends Model
     protected $fillable = [
         'subscription_id',
         'user_id',
-        'product_id',
+        'amount',
+        'currency',
+        'description',
+        'interval',
+        'period',
         'status',
         'next_transaction_at',
     ];
@@ -26,23 +29,8 @@ class Subscription extends Model
         return [
             'status' => 'boolean',
             'next_transaction_at' => 'datetime',
+            'amount' => 'decimal:2',
         ];
-    }
-
-    public function scopeWithProductName(Builder $query): Builder
-    {
-        $productsTable = (new Product)->getTable();
-        $subscriptionsTable = $this->getTable();
-
-        return $query
-            ->select("{$subscriptionsTable}.*")
-            ->join($productsTable, "{$productsTable}.id", '=', "{$subscriptionsTable}.product_id")
-            ->addSelect("{$productsTable}.name");
-    }
-
-    public function product(): BelongsTo
-    {
-        return $this->belongsTo(Product::class);
     }
 
     public function user(): BelongsTo

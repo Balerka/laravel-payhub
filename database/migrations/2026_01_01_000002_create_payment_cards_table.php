@@ -9,7 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create(config('payments.tables.cards', 'payment_cards'), function (Blueprint $table): void {
+        Schema::create(config('payhub.tables.cards', 'payhub_cards'), function (Blueprint $table): void {
             $table->id();
             $table->foreignId('user_id')->constrained($this->userTable())->cascadeOnDelete();
             $table->string('token')->unique();
@@ -25,12 +25,12 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists(config('payments.tables.cards', 'payment_cards'));
+        Schema::dropIfExists(config('payhub.tables.cards', 'payhub_cards'));
     }
 
     private function userTable(): string
     {
-        $model = config('payments.user_model', 'App\\Models\\User');
+        $model = config('payhub.user_model', 'App\\Models\\User');
 
         return is_a($model, Model::class, true)
             ? (new $model)->getTable()

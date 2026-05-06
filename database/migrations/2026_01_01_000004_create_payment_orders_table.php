@@ -9,11 +9,14 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create(config('payments.tables.orders', 'payment_orders'), function (Blueprint $table): void {
+        Schema::create(config('payhub.tables.orders', 'payhub_orders'), function (Blueprint $table): void {
             $table->id();
             $table->foreignId('user_id')->constrained($this->userTable())->cascadeOnDelete();
-            $table->foreignId('product_id')->nullable()->constrained(config('payments.tables.products', 'payment_products'))->nullOnDelete();
-            $table->foreignId('transaction_id')->nullable()->constrained(config('payments.tables.transactions', 'payment_transactions'))->nullOnDelete();
+            $table->foreignId('transaction_id')->nullable()->constrained(config('payhub.tables.transactions', 'payhub_transactions'))->nullOnDelete();
+            $table->decimal('amount', 10, 2)->default(0);
+            $table->string('currency', 3)->default('RUB');
+            $table->string('description')->nullable();
+            $table->json('receipt')->nullable();
             $table->enum('status', ['pending', 'paid', 'failed', 'authorized', 'cancelled'])->default('pending')->index();
             $table->timestamps();
         });
@@ -21,12 +24,12 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists(config('payments.tables.orders', 'payment_orders'));
+        Schema::dropIfExists(config('payhub.tables.orders', 'payhub_orders'));
     }
 
     private function userTable(): string
     {
-        $model = config('payments.user_model', 'App\\Models\\User');
+        $model = config('payhub.user_model', 'App\\Models\\User');
 
         return is_a($model, Model::class, true)
             ? (new $model)->getTable()

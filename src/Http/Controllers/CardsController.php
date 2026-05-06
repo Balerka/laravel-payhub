@@ -7,22 +7,9 @@ use Balerka\LaravelPayhub\Models\Card;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class CardsController
 {
-    public function index(Request $request): mixed
-    {
-        if (! class_exists(Inertia::class)) {
-            throw new NotFoundHttpException('Install inertiajs/inertia-laravel or set payhub.frontend=headless.');
-        }
-
-        return Inertia::render(config('payhub.cards_page', 'payhub/pages/cards'), [
-            'cards' => $this->cards($request),
-        ]);
-    }
-
     public function data(Request $request): JsonResponse
     {
         return response()->json([

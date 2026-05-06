@@ -1,6 +1,6 @@
 {
     "name": "balerka/laravel-payhub",
-    "description": "Reusable Laravel payment foundation with headless endpoints and optional React/Inertia screens.",
+    "description": "Reusable Laravel payment foundation with headless endpoints and embeddable React components.",
     "type": "library",
     "license": "MIT",
     "autoload": {
@@ -14,11 +14,13 @@
         }
     },
     "require": {
+        "guzzlehttp/guzzle": "^7.0",
         "php": "^8.3",
         "illuminate/contracts": "^11.0|^12.0|^13.0",
         "illuminate/database": "^11.0|^12.0|^13.0",
         "illuminate/http": "^11.0|^12.0|^13.0",
-        "illuminate/routing": "^11.0|^12.0|^13.0"
+        "illuminate/routing": "^11.0|^12.0|^13.0",
+        "illuminate/support": "^11.0|^12.0|^13.0"
     },
     "require-dev": {
         "laravel/pint": "^1.0",
@@ -33,7 +35,7 @@
         }
     },
     "suggest": {
-        "inertiajs/inertia-laravel": "Required only when payhub.frontend is set to react."
+        "inertiajs/inertia-laravel": "Useful when embedding Payhub React components in Inertia pages."
     },
     "scripts": {
         "test": "vendor/bin/phpunit",

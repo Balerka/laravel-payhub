@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import { usePaymentCards } from '../hooks/use-payment-cards';
+import { formatPayhubMessage, type PayhubMessagesInput, resolvePayhubMessages } from '../translations';
 
 export type PaymentCard = {
     id: number;
@@ -26,8 +27,15 @@ function formatBrand(brand: string): string {
     return brand.replace(/[_-]+/g, ' ').trim().toUpperCase();
 }
 
-export function useEditablePaymentCards(cards: PaymentCard[], endpoints: Partial<Endpoints> = {}, onUpdated?: () => void | Promise<void>) {
+export function useEditablePaymentCards(
+    cards: PaymentCard[],
+    endpoints: Partial<Endpoints> = {},
+    onUpdated?: () => void | Promise<void>,
+    locale?: string,
+    messages?: PayhubMessagesInput,
+) {
     const resolvedEndpoints = { ...defaultEndpoints, ...endpoints };
+    const resolvedMessages = resolvePayhubMessages(messages, locale);
     const defaultSelectedCardId = useMemo(() => cards.find((card) => card.is_default)?.id ?? null, [cards]);
     const [editing, setEditing] = useState(false);
     const [deleteCardId, setDeleteCardId] = useState<number | null>(null);
@@ -55,7 +63,7 @@ export function useEditablePaymentCards(cards: PaymentCard[], endpoints: Partial
                 },
                 onError: (errors) => {
                     setSelectedCardId(defaultSelectedCardId);
-                    setErrorMessage(typeof errors.card_id === 'string' ? errors.card_id : 'Unable to update payment card.');
+                    setErrorMessage(typeof errors.card_id === 'string' ? errors.card_id : resolvedMessages.cards.updateError);
                 },
             },
         );
@@ -76,7 +84,7 @@ export function useEditablePaymentCards(cards: PaymentCard[], endpoints: Partial
                 await onUpdated?.();
             },
             onError: () => {
-                setErrorMessage('Unable to delete payment card.');
+                setErrorMessage(resolvedMessages.cards.deleteError);
             },
             onFinish: () => {
                 setIsDeleting(false);
@@ -104,6 +112,8 @@ export function PaymentCards({
     endpoints,
     selectedCardId,
     editing = false,
+    locale,
+    messages,
     onSelect,
     onDelete,
 }: {
@@ -112,18 +122,23 @@ export function PaymentCards({
     endpoints?: Partial<Endpoints>;
     selectedCardId?: number | null;
     editing?: boolean;
+    locale?: string;
+    messages?: PayhubMessagesInput;
     onSelect?: (cardId: number) => void;
     onDelete?: (cardId: number) => void;
 }) {
     const resolvedEndpoints = { ...defaultEndpoints, ...endpoints };
+    const resolvedMessages = resolvePayhubMessages(messages, locale);
     const { cards: fetchedCards, hasLoaded, errorMessage } = usePaymentCards({
         enabled: initialCards === undefined,
         endpoint: resolvedEndpoints.data,
+        locale,
+        messages,
     });
     const cards = initialCards ?? fetchedCards;
 
     if (initialCards === undefined && !hasLoaded) {
-        return <div className="rounded-lg border p-4 text-sm text-gray-500">Loading cards...</div>;
+        return <div className="rounded-lg border p-4 text-sm text-gray-500">{resolvedMessages.cards.loading}</div>;
     }
 
     if (variant === 'compact') {
@@ -144,7 +159,7 @@ export function PaymentCards({
     if (cards.length === 0) {
         return (
             <div className="rounded-lg border border-dashed p-8 text-center text-sm text-gray-500">
-                {errorMessage ?? 'Saved cards will appear here after the first successful payment.'}
+                {errorMessage ?? resolvedMessages.cards.empty}
             </div>
         );
     }
@@ -177,12 +192,12 @@ export function PaymentCards({
                             {formatBrand(card.brand)}
                         </div>
                         <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium">{card.bank || 'Payment card'}</div>
+                            <div className="truncate text-sm font-medium">{card.bank || resolvedMessages.cards.paymentCard}</div>
                             <div className="text-sm text-gray-500">**** {card.last4}</div>
                         </div>
                         {editing ? (
                             <button type="button" className="rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50" onClick={() => onDelete?.(card.id)}>
-                                Delete
+                                {resolvedMessages.cards.delete}
                             </button>
                         ) : (
                             <span className={`size-5 rounded-full border ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-gray-300'}`} />
@@ -198,12 +213,16 @@ export function PaymentCardsDeleteDialog({
     open,
     isDeleting,
     cardLast4,
+    locale,
+    messages,
     onCancel,
     onConfirm,
 }: {
     open: boolean;
     isDeleting: boolean;
     cardLast4: string | null;
+    locale?: string;
+    messages?: PayhubMessagesInput;
     onCancel: () => void;
     onConfirm: () => void;
 }) {
@@ -211,17 +230,22 @@ export function PaymentCardsDeleteDialog({
         return null;
     }
 
+    const resolvedMessages = resolvePayhubMessages(messages, locale);
+    const description = formatPayhubMessage(resolvedMessages.cards.deleteDescription, {
+        card: cardLast4 ? `**** ${cardLast4}` : '',
+    });
+
     return (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">
             <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-                <h2 className="text-lg font-semibold">Delete payment card?</h2>
-                <p className="mt-2 text-sm text-gray-600">Card {cardLast4 ? `**** ${cardLast4}` : ''} will be removed from saved payment methods.</p>
+                <h2 className="text-lg font-semibold">{resolvedMessages.cards.deleteTitle}</h2>
+                <p className="mt-2 text-sm text-gray-600">{description}</p>
                 <div className="mt-6 grid grid-cols-2 gap-3">
                     <button type="button" className="rounded-md border px-4 py-2 text-sm" disabled={isDeleting} onClick={onCancel}>
-                        Cancel
+                        {resolvedMessages.cards.cancel}
                     </button>
                     <button type="button" className="rounded-md bg-red-600 px-4 py-2 text-sm text-white" disabled={isDeleting} onClick={onConfirm}>
-                        Delete
+                        {resolvedMessages.cards.delete}
                     </button>
                 </div>
             </div>

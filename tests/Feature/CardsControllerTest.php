@@ -81,7 +81,7 @@ class CardsControllerTest extends TestCase
         $this->assertTrue($card->refresh()->is_default);
     }
 
-    public function test_react_cards_page_is_disabled_in_headless_mode(): void
+    public function test_package_does_not_register_cards_page(): void
     {
         $user = User::query()->create(['name' => 'User']);
 

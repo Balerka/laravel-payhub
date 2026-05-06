@@ -14,19 +14,25 @@ class Order extends Model
 
     protected $fillable = [
         'user_id',
-        'product_id',
-        'status',
         'transaction_id',
+        'amount',
+        'currency',
+        'description',
+        'receipt',
+        'status',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'amount' => 'decimal:2',
+            'receipt' => 'array',
+        ];
+    }
 
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class);
-    }
-
-    public function product(): BelongsTo
-    {
-        return $this->belongsTo(Product::class);
     }
 
     public function user(): BelongsTo
