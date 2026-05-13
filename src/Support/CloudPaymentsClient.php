@@ -4,10 +4,8 @@ namespace Balerka\LaravelPayhub\Support;
 
 use Balerka\LaravelPayhub\Models\Card;
 use Balerka\LaravelPayhub\Models\Order;
-use Balerka\LaravelPayhub\Models\Transaction;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class CloudPaymentsClient
@@ -24,9 +22,9 @@ class CloudPaymentsClient
 
     public function __construct(bool $enableSsl = true)
     {
-        $this->baseUrl = (string) config('payhub.gateways.cloud_payments.api_url');
-        $this->publicKey = (string) config('payhub.gateways.cloud_payments.public_id');
-        $this->privateKey = (string) config('payhub.gateways.cloud_payments.secret');
+        $this->baseUrl = (string)config('payhub.gateways.cloud_payments.api_url');
+        $this->publicKey = (string)config('payhub.gateways.cloud_payments.public_id');
+        $this->privateKey = (string)config('payhub.gateways.cloud_payments.secret');
         $this->locale = app()->getLocale() === 'ru' ? 'ru-RU' : 'en-US';
         $this->enableSsl = $enableSsl;
     }
@@ -37,12 +35,12 @@ class CloudPaymentsClient
     public function chargeByToken(Card $card, Order $order, string $email, string $ipAddress): array
     {
         return $this->sendRequest('/payments/tokens/charge', [
-            'Amount' => (float) $order->amount,
+            'Amount' => (float)$order->amount,
             'Currency' => $order->currency ?: config('payhub.currency', config('app.currency', 'RUB')),
-            'AccountId' => (string) $order->user_id,
+            'AccountId' => (string)$order->user_id,
             'TrInitiatorCode' => 1,
             'Token' => $card->token,
-            'InvoiceId' => (string) $order->id,
+            'InvoiceId' => (string)$order->id,
             'Description' => $order->description ?: 'Payment',
             'IpAddress' => $ipAddress,
             'Email' => $email,
@@ -50,7 +48,7 @@ class CloudPaymentsClient
                 'cloudpayments' => [
                     'CustomerReceipt' => $this->receipt(
                         $order->description ?: 'Payment',
-                        (float) $order->amount,
+                        (float)$order->amount,
                         $email,
                         $this->storedReceipt($order),
                     ),
@@ -92,20 +90,21 @@ class CloudPaymentsClient
     }
 
     /**
-     * @param  array<string, mixed>  $additionalParams
+     * @param array<string, mixed> $additionalParams
      * @return array<string, mixed>|null
      */
     public function createSubscription(
-        string $token,
-        Model $user,
-        string $startIn,
-        float $amount,
-        string $description,
+        string  $token,
+        Model   $user,
+        string  $startIn,
+        float   $amount,
+        string  $description,
         ?string $interval,
-        ?int $period,
-        array $additionalParams = [],
-    ): ?array {
-        $email = (string) ($user->email ?? '');
+        ?int    $period,
+        array   $additionalParams = [],
+    ): ?array
+    {
+        $email = (string)($user->email ?? '');
         $params = array_merge([
             'Token' => $token,
             'AccountId' => $user->getKey(),
@@ -137,7 +136,7 @@ class CloudPaymentsClient
     }
 
     /**
-     * @param  array<string, mixed>  $updateParams
+     * @param array<string, mixed> $updateParams
      */
     public function updateSubscription(string $subscriptionId, array $updateParams): bool
     {
@@ -148,11 +147,11 @@ class CloudPaymentsClient
         return ($response['Success'] ?? false) === true;
     }
 
-    public function confirmPayment(Transaction $transaction): bool
+    public function confirmPayment(string $transactionId, float $amount): bool
     {
         $response = $this->sendRequest('/payments/confirm', [
-            'TransactionId' => $transaction->transaction_id,
-            'Amount' => (float) $transaction->amount,
+            'TransactionId' => $transactionId,
+            'Amount' => $amount,
         ]);
 
         return ($response['Success'] ?? false) === true;
@@ -206,7 +205,7 @@ class CloudPaymentsClient
     }
 
     /**
-     * @param  array<string, mixed>  $params
+     * @param array<string, mixed> $params
      * @return array<string, mixed>
      */
     protected function sendRequest(string $endpoint, array $params = []): array
@@ -216,7 +215,7 @@ class CloudPaymentsClient
                 'json' => array_merge($params, ['CultureName' => $this->locale]),
             ]);
 
-            return json_decode((string) $response->getBody(), true) ?: [
+            return json_decode((string)$response->getBody(), true) ?: [
                 'Success' => false,
                 'Message' => 'CloudPayments returned an empty response.',
             ];
@@ -229,7 +228,7 @@ class CloudPaymentsClient
     }
 
     /**
-     * @param  array<string, mixed>  $receipt
+     * @param array<string, mixed> $receipt
      * @return array{Items: array<int, array{Label: string, Price: float, Quantity: float, Amount: float, Vat: mixed, Method: int, Object: int, MeasurementUnit: string}>, Email: string, Amounts: array<string, float>}
      */
     private function receipt(string $description, float $amount, string $email, array $receipt = []): array
@@ -249,23 +248,23 @@ class CloudPaymentsClient
             : $items;
 
         return [
-            'Items' => array_map(fn (array $item): array => [
-                'Label' => (string) $item['label'],
-                'Price' => (float) $item['price'],
-                'Quantity' => (float) $item['quantity'],
-                'Amount' => (float) $item['amount'],
+            'Items' => array_map(fn(array $item): array => [
+                'Label' => (string)$item['label'],
+                'Price' => (float)$item['price'],
+                'Quantity' => (float)$item['quantity'],
+                'Amount' => (float)$item['amount'],
                 'Vat' => $item['vat'] ?? null,
-                'Method' => (int) ($item['method'] ?? 1),
-                'Object' => (int) ($item['object'] ?? 4),
-                'MeasurementUnit' => (string) ($item['measurementUnit'] ?? 'payment'),
+                'Method' => (int)($item['method'] ?? 1),
+                'Object' => (int)($item['object'] ?? 4),
+                'MeasurementUnit' => (string)($item['measurementUnit'] ?? 'payment'),
             ], $receiptItems),
-            'Email' => (string) ($receipt['email'] ?? $email),
+            'Email' => (string)($receipt['email'] ?? $email),
             'Amounts' => $this->receiptAmounts($receipt, $amount),
         ];
     }
 
     /**
-     * @param  array<string, mixed>  $receipt
+     * @param array<string, mixed> $receipt
      * @return array<string, float>
      */
     private function receiptAmounts(array $receipt, float $amount): array
@@ -273,10 +272,10 @@ class CloudPaymentsClient
         $amounts = is_array($receipt['amounts'] ?? null) ? $receipt['amounts'] : [];
 
         return [
-            'Electronic' => (float) ($amounts['electronic'] ?? $amount),
-            'AdvancePayment' => (float) ($amounts['advance_payment'] ?? 0),
-            'Credit' => (float) ($amounts['credit'] ?? 0),
-            'Provision' => (float) ($amounts['provision'] ?? 0),
+            'Electronic' => (float)($amounts['electronic'] ?? $amount),
+            'AdvancePayment' => (float)($amounts['advance_payment'] ?? 0),
+            'Credit' => (float)($amounts['credit'] ?? 0),
+            'Provision' => (float)($amounts['provision'] ?? 0),
         ];
     }
 
