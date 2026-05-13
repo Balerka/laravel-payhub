@@ -31,8 +31,6 @@ abstract class TestCase extends Orchestra
         $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('a', 32)));
         $app['config']->set('cache.default', 'array');
         $app['config']->set('session.driver', 'array');
-        $app['config']->set('payhub.route_middleware', ['web']);
-        $app['config']->set('payhub.api_middleware', ['web']);
         $app['config']->set('payhub.test_mode', true);
         $app['config']->set('payhub.user_model', User::class);
     }

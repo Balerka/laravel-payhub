@@ -3,10 +3,6 @@
 return [
     'route_prefix' => env('PAYHUB_ROUTE_PREFIX', 'payhub'),
 
-    'route_middleware' => ['web', 'auth', 'verified'],
-
-    'api_middleware' => ['web', 'auth', 'verified'],
-
     'user_model' => env('PAYHUB_USER_MODEL', 'App\\Models\\User'),
 
     'models' => [

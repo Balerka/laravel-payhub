@@ -10,7 +10,6 @@ use Balerka\LaravelPayhub\Http\Middleware\CloudPaymentsMiddleware;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix(config('payhub.route_prefix'))
-    ->middleware(config('payhub.route_middleware'))
     ->group(function (): void {
         Route::post('checkout/orders', [CheckoutController::class, 'store'])->name('payhub.checkout.orders.store');
         Route::delete('checkout/orders/{order}', [CheckoutController::class, 'destroy'])->name('payhub.checkout.orders.destroy');
@@ -19,6 +18,8 @@ Route::prefix(config('payhub.route_prefix'))
         Route::delete('cards/{card}', [CardsController::class, 'destroy'])->name('payhub.cards.destroy');
 
         Route::post('subscriptions/cancel', [SubscriptionsController::class, 'cancel'])->name('payhub.subscriptions.cancel');
+        Route::post('subscriptions/cancel-by-email', [SubscriptionsController::class, 'cancelByEmail'])->name('payhub.subscriptions.cancel-by-email');
+
         Route::post('refunds/refund', [RefundsController::class, 'refund'])->name('payhub.refunds.refund');
     });
 
@@ -31,7 +32,6 @@ Route::prefix(config('payhub.gateways.cloud_payments.route_prefix', config('payh
     });
 
 Route::prefix(config('payhub.route_prefix'))
-    ->middleware(config('payhub.api_middleware'))
     ->group(function (): void {
         Route::get('cards/data', [CardsController::class, 'data'])->name('payhub.cards.data');
         Route::get('checkout/data', [CheckoutController::class, 'data'])->name('payhub.checkout.data');
