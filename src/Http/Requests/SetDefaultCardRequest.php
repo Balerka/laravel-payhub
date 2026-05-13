@@ -2,7 +2,7 @@
 
 namespace Balerka\LaravelPayhub\Http\Requests;
 
-use Balerka\LaravelPayhub\Models\Card;
+use Balerka\LaravelPayhub\Support\PayhubModels;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,7 +19,7 @@ class SetDefaultCardRequest extends FormRequest
             'card_id' => [
                 'required',
                 'integer',
-                Rule::exists((new Card)->getTable(), 'id')
+                Rule::exists((new (PayhubModels::card()))->getTable(), 'id')
                     ->where(fn ($query) => $query->where('user_id', $this->user()?->id)),
             ],
         ];

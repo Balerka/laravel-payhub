@@ -2,9 +2,8 @@
 
 namespace Balerka\LaravelPayhub\Http\Controllers;
 
-use Balerka\LaravelPayhub\Models\Card;
-use Balerka\LaravelPayhub\Models\Order;
-use Balerka\LaravelPayhub\Models\Transaction;
+use Balerka\LaravelPayhub\Support\PayhubModels;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -51,7 +50,8 @@ class CloudPaymentsController
             return response()->json(['code' => 12]);
         }
 
-        $transaction = Transaction::query()->firstOrCreate(
+        $transactionModel = PayhubModels::transaction();
+        $transaction = $transactionModel::query()->firstOrCreate(
             ['transaction_id' => $transactionId],
             [
                 'user_id' => $order->user_id,
@@ -79,7 +79,7 @@ class CloudPaymentsController
         return response()->json(['code' => 0]);
     }
 
-    private function order(Request $request): ?Order
+    private function order(Request $request): ?Model
     {
         $orderId = $this->intInput($request, 'order_id', 'InvoiceId');
 
@@ -87,7 +87,9 @@ class CloudPaymentsController
             return null;
         }
 
-        return Order::query()->whereKey($orderId)->first();
+        $orderModel = PayhubModels::order();
+
+        return $orderModel::query()->whereKey($orderId)->first();
     }
 
     private function storeCard(Request $request, int $userId): void
@@ -100,12 +102,13 @@ class CloudPaymentsController
             return;
         }
 
-        $hasDefaultCard = Card::query()
+        $cardModel = PayhubModels::card();
+        $hasDefaultCard = $cardModel::query()
             ->where('user_id', $userId)
             ->where('is_default', true)
             ->exists();
 
-        Card::query()->updateOrCreate(
+        $cardModel::query()->updateOrCreate(
             ['token' => $token],
             [
                 'user_id' => $userId,

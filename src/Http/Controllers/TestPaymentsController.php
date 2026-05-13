@@ -3,10 +3,8 @@
 namespace Balerka\LaravelPayhub\Http\Controllers;
 
 use Balerka\LaravelPayhub\Http\Requests\TestPaymentRequest;
-use Balerka\LaravelPayhub\Models\Card;
-use Balerka\LaravelPayhub\Models\Order;
-use Balerka\LaravelPayhub\Models\Subscription;
-use Balerka\LaravelPayhub\Models\Transaction;
+use Balerka\LaravelPayhub\Support\PayhubModels;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -21,7 +19,8 @@ class TestPaymentsController
             $amount = (float) $data['amount'];
             $status = (bool) ($data['status'] ?? true);
 
-            $transaction = Transaction::query()->create([
+            $transactionModel = PayhubModels::transaction();
+            $transaction = $transactionModel::query()->create([
                 'user_id' => $request->user()->id,
                 'transaction_id' => $data['transaction_id'] ?? 'test_'.Str::uuid(),
                 'amount' => $amount,
@@ -49,10 +48,12 @@ class TestPaymentsController
     /**
      * @param  array<string, mixed>  $data
      */
-    private function resolveOrder(int $userId, array $data, Transaction $transaction): ?Order
+    private function resolveOrder(int $userId, array $data, Model $transaction): ?Model
     {
+        $orderModel = PayhubModels::order();
+
         if (isset($data['order_id'])) {
-            $order = Order::query()
+            $order = $orderModel::query()
                 ->where('user_id', $userId)
                 ->whereKey($data['order_id'])
                 ->first();
@@ -67,7 +68,7 @@ class TestPaymentsController
             return $order;
         }
 
-        return Order::query()->create([
+        return $orderModel::query()->create([
             'user_id' => $userId,
             'transaction_id' => $transaction->id,
             'amount' => (float) $data['amount'],
@@ -106,18 +107,19 @@ class TestPaymentsController
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeCard(int $userId, array $data): ?Card
+    private function storeCard(int $userId, array $data): ?Model
     {
         if (empty($data['card_token']) || empty($data['card_last4']) || empty($data['card_brand'])) {
             return null;
         }
 
-        $hasDefaultCard = Card::query()
+        $cardModel = PayhubModels::card();
+        $hasDefaultCard = $cardModel::query()
             ->where('user_id', $userId)
             ->where('is_default', true)
             ->exists();
 
-        return Card::query()->updateOrCreate(
+        return $cardModel::query()->updateOrCreate(
             ['token' => $data['card_token']],
             [
                 'user_id' => $userId,
@@ -132,13 +134,15 @@ class TestPaymentsController
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeSubscription(int $userId, array $data): ?Subscription
+    private function storeSubscription(int $userId, array $data): ?Model
     {
         if (empty($data['subscription_id'])) {
             return null;
         }
 
-        return Subscription::query()->updateOrCreate(
+        $subscriptionModel = PayhubModels::subscription();
+
+        return $subscriptionModel::query()->updateOrCreate(
             ['subscription_id' => $data['subscription_id']],
             [
                 'user_id' => $userId,

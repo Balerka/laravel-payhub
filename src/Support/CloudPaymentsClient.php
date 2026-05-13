@@ -2,10 +2,9 @@
 
 namespace Balerka\LaravelPayhub\Support;
 
-use Balerka\LaravelPayhub\Models\Card;
-use Balerka\LaravelPayhub\Models\Order;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 class CloudPaymentsClient
@@ -32,7 +31,7 @@ class CloudPaymentsClient
     /**
      * @return array<string, mixed>
      */
-    public function chargeByToken(Card $card, Order $order, string $email, string $ipAddress): array
+    public function chargeByToken(Model $card, Model $order, string $email, string $ipAddress): array
     {
         return $this->sendRequest('/payments/tokens/charge', [
             'Amount' => (float)$order->amount,

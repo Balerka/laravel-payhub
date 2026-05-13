@@ -3,7 +3,8 @@
 namespace Balerka\LaravelPayhub\Http\Controllers;
 
 use Balerka\LaravelPayhub\Http\Requests\SetDefaultCardRequest;
-use Balerka\LaravelPayhub\Models\Card;
+use Balerka\LaravelPayhub\Support\PayhubModels;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,8 @@ class CardsController
     public function setDefault(SetDefaultCardRequest $request): JsonResponse|RedirectResponse
     {
         $cardId = (int) $request->validated('card_id');
-        $card = Card::query()
+        $cardModel = PayhubModels::card();
+        $card = $cardModel::query()
             ->where('user_id', $request->user()->id)
             ->whereKey($cardId)
             ->first();
@@ -29,7 +31,7 @@ class CardsController
             return $this->emptyResponse($request);
         }
 
-        Card::query()
+        $cardModel::query()
             ->where('user_id', $request->user()->id)
             ->update(['is_default' => false]);
 
@@ -38,8 +40,14 @@ class CardsController
         return $this->emptyResponse($request);
     }
 
-    public function destroy(Request $request, Card $card): JsonResponse|RedirectResponse
+    public function destroy(Request $request, string|int $card): JsonResponse|RedirectResponse
     {
+        $card = $this->findCard($card);
+
+        if (! $card) {
+            return $this->emptyResponse($request);
+        }
+
         if ((int) $card->user_id !== (int) $request->user()->id) {
             return $this->emptyResponse($request);
         }
@@ -48,7 +56,8 @@ class CardsController
         $card->delete();
 
         if ($wasDefault) {
-            Card::query()
+            $cardModel = PayhubModels::card();
+            $cardModel::query()
                 ->where('user_id', $request->user()->id)
                 ->latest('id')
                 ->first()
@@ -63,10 +72,12 @@ class CardsController
      */
     private function cards(Request $request): array
     {
-        return Card::query()
+        $cardModel = PayhubModels::card();
+
+        return $cardModel::query()
             ->where('user_id', $request->user()->id)
             ->get(['id', 'bank', 'brand', 'last4', 'is_default'])
-            ->map(fn (Card $card): array => [
+            ->map(fn (Model $card): array => [
                 'id' => $card->id,
                 'bank' => $card->bank,
                 'brand' => $card->brand,
@@ -84,5 +95,12 @@ class CardsController
         }
 
         return back();
+    }
+
+    private function findCard(string|int $id): ?Model
+    {
+        $cardModel = PayhubModels::card();
+
+        return $cardModel::query()->whereKey($id)->first();
     }
 }

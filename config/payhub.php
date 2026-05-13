@@ -9,6 +9,13 @@ return [
 
     'user_model' => env('PAYHUB_USER_MODEL', 'App\\Models\\User'),
 
+    'models' => [
+        'card' => \Balerka\LaravelPayhub\Models\Card::class,
+        'order' => \Balerka\LaravelPayhub\Models\Order::class,
+        'transaction' => \Balerka\LaravelPayhub\Models\Transaction::class,
+        'subscription' => \Balerka\LaravelPayhub\Models\Subscription::class,
+    ],
+
     'currency' => env('PAYHUB_CURRENCY', env('APP_CURRENCY', 'RUB')),
 
     'test_mode' => filter_var(env('PAYHUB_TEST_MODE', env('APP_ENV') === 'local'), FILTER_VALIDATE_BOOL),

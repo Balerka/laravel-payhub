@@ -2,8 +2,9 @@
 
 namespace Balerka\LaravelPayhub\Http\Controllers;
 
-use Balerka\LaravelPayhub\Models\Subscription;
 use Balerka\LaravelPayhub\Support\CloudPaymentsClient;
+use Balerka\LaravelPayhub\Support\PayhubModels;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,11 +16,13 @@ class SubscriptionsController
 
     public function data(Request $request): JsonResponse
     {
-        $subscriptions = Subscription::query()
+        $subscriptionModel = PayhubModels::subscription();
+
+        $subscriptions = $subscriptionModel::query()
             ->where('user_id', $request->user()->id)
             ->latest('id')
             ->get()
-            ->map(fn (Subscription $subscription): array => $this->subscriptionPayload($subscription))
+            ->map(fn (Model $subscription): array => $this->subscriptionPayload($subscription))
             ->values()
             ->all();
 
@@ -36,7 +39,9 @@ class SubscriptionsController
             'subscription_id' => ['required', 'string'],
         ]);
 
-        $subscription = Subscription::query()
+        $subscriptionModel = PayhubModels::subscription();
+
+        $subscription = $subscriptionModel::query()
             ->where('user_id', $request->user()->id)
             ->where('subscription_id', $data['subscription_id'])
             ->first();
@@ -67,7 +72,7 @@ class SubscriptionsController
     /**
      * @return array{id: int, subscription_id: string, status: bool, next_transaction_at: string|null, amount: float|null, currency: string, description: string|null, interval: string|null, period: int|null}
      */
-    private function subscriptionPayload(Subscription $subscription): array
+    private function subscriptionPayload(Model $subscription): array
     {
         return [
             'id' => $subscription->id,

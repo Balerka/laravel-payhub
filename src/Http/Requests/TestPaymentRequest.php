@@ -2,7 +2,7 @@
 
 namespace Balerka\LaravelPayhub\Http\Requests;
 
-use Balerka\LaravelPayhub\Models\Order;
+use Balerka\LaravelPayhub\Support\PayhubModels;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -42,7 +42,7 @@ class TestPaymentRequest extends FormRequest
             'items.*.object' => ['nullable', 'integer'],
             'items.*.measurement_unit' => ['nullable', 'string', 'max:64'],
             'items.*.measurementUnit' => ['nullable', 'string', 'max:64'],
-            'order_id' => ['nullable', 'integer', Rule::exists((new Order)->getTable(), 'id')],
+            'order_id' => ['nullable', 'integer', Rule::exists((new (PayhubModels::order()))->getTable(), 'id')],
             'gateway' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'boolean'],
             'transaction_id' => ['nullable', 'string', 'max:255'],

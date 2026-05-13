@@ -2,8 +2,9 @@
 
 namespace Balerka\LaravelPayhub\Http\Controllers;
 
-use Balerka\LaravelPayhub\Models\Transaction;
 use Balerka\LaravelPayhub\Support\CloudPaymentsClient;
+use Balerka\LaravelPayhub\Support\PayhubModels;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,13 +17,15 @@ class RefundsController
 
     public function data(Request $request): JsonResponse
     {
-        $transactions = Transaction::query()
+        $transactionModel = PayhubModels::transaction();
+
+        $transactions = $transactionModel::query()
             ->with('order')
             ->where('user_id', $request->user()->id)
             ->whereNotNull('transaction_id')
             ->latest('id')
             ->get()
-            ->map(fn (Transaction $transaction): array => $this->transactionPayload($transaction))
+            ->map(fn (Model $transaction): array => $this->transactionPayload($transaction))
             ->values()
             ->all();
 
@@ -40,7 +43,9 @@ class RefundsController
             'amount' => ['nullable', 'numeric', 'min:0.01'],
         ]);
 
-        $transaction = Transaction::query()
+        $transactionModel = PayhubModels::transaction();
+
+        $transaction = $transactionModel::query()
             ->with('order')
             ->where('user_id', $request->user()->id)
             ->whereKey((int) $data['transaction_id'])
@@ -105,7 +110,7 @@ class RefundsController
     /**
      * @return array{id: int, transaction_id: string|null, amount: float, fee: float, income: float, status: bool, gateway: string|null, created_at: string|null, order: array{id: int, status: string, amount: float, currency: string, description: string|null}|null}
      */
-    private function transactionPayload(Transaction $transaction): array
+    private function transactionPayload(Model $transaction): array
     {
         $order = $transaction->order;
 

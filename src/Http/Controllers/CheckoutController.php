@@ -2,10 +2,9 @@
 
 namespace Balerka\LaravelPayhub\Http\Controllers;
 
-use Balerka\LaravelPayhub\Models\Card;
-use Balerka\LaravelPayhub\Models\Order;
-use Balerka\LaravelPayhub\Models\Transaction;
 use Balerka\LaravelPayhub\Support\CloudPaymentsClient;
+use Balerka\LaravelPayhub\Support\PayhubModels;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -69,7 +68,8 @@ class CheckoutController
         $amount = (float) $data['amount'];
         $receipt = $this->receipt($request, $data, $amount, $currency);
 
-        $order = Order::query()->create([
+        $orderModel = PayhubModels::order();
+        $order = $orderModel::query()->create([
             'user_id' => $request->user()->id,
             'amount' => $amount,
             'currency' => $currency,
@@ -94,8 +94,14 @@ class CheckoutController
         ]);
     }
 
-    public function destroy(Request $request, Order $order): JsonResponse|RedirectResponse
+    public function destroy(Request $request, string|int $order): JsonResponse|RedirectResponse
     {
+        $order = $this->findOrder($order);
+
+        if (! $order) {
+            return $this->emptyResponse($request);
+        }
+
         if ((int) $order->user_id !== (int) $request->user()->id) {
             return $this->emptyResponse($request);
         }
@@ -107,7 +113,7 @@ class CheckoutController
         return $this->emptyResponse($request);
     }
 
-    private function chargeSavedCloudPaymentsCard(Request $request, Order $order, Card $card): JsonResponse
+    private function chargeSavedCloudPaymentsCard(Request $request, Model $order, Model $card): JsonResponse
     {
         try {
             $response = $this->cloudPayments->chargeByToken(
@@ -132,11 +138,12 @@ class CheckoutController
             ], 422);
         }
 
-        $transaction = DB::transaction(function () use ($order, $response): Transaction {
+        $transaction = DB::transaction(function () use ($order, $response): Model {
             $model = is_array($response['Model'] ?? null) ? $response['Model'] : [];
             $transactionId = $model['TransactionId'] ?? $response['TransactionId'] ?? 'cloud-payments-token-'.$order->id;
+            $transactionModel = PayhubModels::transaction();
 
-            $transaction = Transaction::query()->firstOrCreate(
+            $transaction = $transactionModel::query()->firstOrCreate(
                 ['transaction_id' => $transactionId],
                 [
                     'user_id' => $order->user_id,
@@ -166,10 +173,11 @@ class CheckoutController
         ]);
     }
 
-    private function chargeSavedTestCard(Order $order, Card $card): JsonResponse
+    private function chargeSavedTestCard(Model $order, Model $card): JsonResponse
     {
-        $transaction = DB::transaction(function () use ($order, $card): Transaction {
-            $transaction = Transaction::query()->create([
+        $transaction = DB::transaction(function () use ($order, $card): Model {
+            $transactionModel = PayhubModels::transaction();
+            $transaction = $transactionModel::query()->create([
                 'user_id' => $order->user_id,
                 'transaction_id' => 'test-saved-card-'.$order->id.'-'.$card->id,
                 'amount' => (float) $order->amount,
@@ -197,13 +205,15 @@ class CheckoutController
         ]);
     }
 
-    private function selectedCard(Request $request, mixed $cardId): ?Card
+    private function selectedCard(Request $request, mixed $cardId): ?Model
     {
         if (! $cardId) {
             return null;
         }
 
-        return Card::query()
+        $cardModel = PayhubModels::card();
+
+        return $cardModel::query()
             ->where('user_id', $request->user()->id)
             ->whereKey((int) $cardId)
             ->firstOrFail();
@@ -211,7 +221,9 @@ class CheckoutController
 
     private function selectedCardId(Request $request): ?int
     {
-        return Card::query()
+        $cardModel = PayhubModels::card();
+
+        return $cardModel::query()
             ->where('user_id', $request->user()->id)
             ->where('is_default', true)
             ->value('id');
@@ -222,10 +234,12 @@ class CheckoutController
      */
     private function cardsPayload(Request $request): array
     {
-        return Card::query()
+        $cardModel = PayhubModels::card();
+
+        return $cardModel::query()
             ->where('user_id', $request->user()->id)
             ->get(['id', 'bank', 'brand', 'last4', 'is_default'])
-            ->map(fn (Card $card): array => [
+            ->map(fn (Model $card): array => [
                 'id' => $card->id,
                 'bank' => $card->bank,
                 'brand' => $card->brand,
@@ -275,7 +289,7 @@ class CheckoutController
     /**
      * @return array{id: int, amount: float, currency: string, description: string|null, status: string}
      */
-    private function orderPayload(Order $order): array
+    private function orderPayload(Model $order): array
     {
         return [
             'id' => $order->id,
@@ -289,7 +303,7 @@ class CheckoutController
     /**
      * @return array{gateway: string, publicId: string|null, description: string, quantity: int, price: float, amount: float, currency: string, accountId: int, orderId: int, email: string, unit: string, receipt: array<string, mixed>, items: array<int, array<string, mixed>>}
      */
-    private function paymentPayload(Request $request, Order $order): array
+    private function paymentPayload(Request $request, Model $order): array
     {
         $receipt = $this->storedReceipt($order);
 
@@ -380,7 +394,7 @@ class CheckoutController
     /**
      * @return array<string, mixed>
      */
-    private function storedReceipt(Order $order): array
+    private function storedReceipt(Model $order): array
     {
         $receipt = $order->receipt;
 
@@ -406,6 +420,13 @@ class CheckoutController
         $vat = (float) config('payhub.gateways.test.vat', 1);
 
         return round($amount * $commission * $vat, 2);
+    }
+
+    private function findOrder(string|int $id): ?Model
+    {
+        $orderModel = PayhubModels::order();
+
+        return $orderModel::query()->whereKey($id)->first();
     }
 
     private function emptyResponse(Request $request): JsonResponse|RedirectResponse
