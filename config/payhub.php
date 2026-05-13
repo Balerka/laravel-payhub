@@ -29,6 +29,8 @@ return [
             'vat' => 1 + ((float) env('PAYHUB_TEST_VAT', 0) / 100),
         ],
         'cloud_payments' => [
+            'route_prefix' => env('PAYHUB_CLOUD_PAYMENTS_ROUTE_PREFIX', 'api/cloudpayments'),
+            'middleware' => [],
             'api_url' => env('CP_API_URL', 'https://api.cloudpayments.ru'),
             'public_id' => env('CP_PUBLIC_ID'),
             'secret' => env('CP_SECRET'),

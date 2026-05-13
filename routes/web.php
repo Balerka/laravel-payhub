@@ -22,10 +22,10 @@ Route::prefix(config('payhub.route_prefix'))
         Route::post('refunds/refund', [RefundsController::class, 'refund'])->name('payhub.refunds.refund');
     });
 
-Route::prefix(config('payhub.route_prefix'))
-    ->middleware(CloudPaymentsMiddleware::class)
+Route::prefix(config('payhub.gateways.cloud_payments.route_prefix', config('payhub.cloud_payments_route_prefix', 'api/cloudpayments')))
+    ->middleware(array_merge(config('payhub.gateways.cloud_payments.middleware', config('payhub.cloud_payments_middleware', [])), [CloudPaymentsMiddleware::class]))
     ->group(function (): void {
-        Route::post('payments/cloud-payments/{action}', [CloudPaymentsController::class, 'action'])
+        Route::post('{action}', [CloudPaymentsController::class, 'action'])
             ->whereIn('action', ['check', 'pay', 'fail'])
             ->name('payhub.cloud-payments.action');
     });
