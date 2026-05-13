@@ -19,6 +19,21 @@ php artisan vendor:publish --tag=payhub-migrations
 php artisan migrate
 ```
 
+If the host app wants to customize Payhub Eloquent models, publish them and point `config/payhub.php` to the published classes:
+
+```bash
+php artisan vendor:publish --tag=payhub-models
+```
+
+This publishes:
+
+```text
+app/Models/Card.php
+app/Models/Order.php
+app/Models/Transaction.php
+app/Models/Subscription.php
+```
+
 For local development from this repository:
 
 ```json
@@ -157,6 +172,7 @@ Routes are registered with the `payhub.` name prefix and use `/payhub` as the de
 - `DELETE /payhub/cards/{card}` deletes a card owned by the current user.
 - `GET /payhub/subscriptions/data` returns subscriptions owned by the current user.
 - `POST /payhub/subscriptions/cancel` cancels a current user's CloudPayments subscription.
+- `POST /payhub/subscriptions/cancel-by-email` cancels an active subscription by customer email and saved card last four digits.
 - `GET /payhub/refunds/data` returns refundable payment transactions owned by the current user.
 - `POST /payhub/refunds/refund` refunds or voids a current user's CloudPayments payment transaction.
 - `POST /payhub/payments/test/pay` creates a local test payment when `payhub.test_mode=true`.
@@ -166,7 +182,7 @@ For a custom frontend, call the JSON endpoints directly and send `Accept: applic
 
 ## Configuration
 
-`config/payhub.php` controls route middleware, table names, user model, currency, test mode, and gateway metadata.
+`config/payhub.php` controls route prefix, model classes, table names, user model, currency, test mode, and gateway metadata. Payhub does not add application auth/session middleware to its own JSON routes; the host project decides how those URLs are exposed and called. CloudPayments callbacks are the only routes with Payhub middleware.
 
 Set checkout currency with:
 
@@ -194,9 +210,9 @@ CP_SECRET=...
 Configure CloudPayments callbacks to:
 
 ```text
-POST /payhub/payments/cloud-payments/check
-POST /payhub/payments/cloud-payments/pay
-POST /payhub/payments/cloud-payments/fail
+POST /api/cloudpayments/check
+POST /api/cloudpayments/pay
+POST /api/cloudpayments/fail
 ```
 
 The callbacks are protected with the CloudPayments `Content-HMAC` signature.

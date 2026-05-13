@@ -1,0 +1,35 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Subscription extends Model
+{
+    protected $fillable = [
+        'subscription_id',
+        'user_id',
+        'amount',
+        'currency',
+        'description',
+        'interval',
+        'period',
+        'status',
+        'next_transaction_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'amount' => 'decimal:2',
+            'next_transaction_at' => 'datetime',
+            'status' => 'boolean',
+        ];
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+}

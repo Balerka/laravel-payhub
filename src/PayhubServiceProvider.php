@@ -25,6 +25,13 @@ class PayhubServiceProvider extends ServiceProvider
         ], 'payhub-migrations');
 
         $this->publishes([
+            __DIR__.'/../stubs/models/Card.php' => app_path('Models/Card.php'),
+            __DIR__.'/../stubs/models/Order.php' => app_path('Models/Order.php'),
+            __DIR__.'/../stubs/models/Transaction.php' => app_path('Models/Transaction.php'),
+            __DIR__.'/../stubs/models/Subscription.php' => app_path('Models/Subscription.php'),
+        ], 'payhub-models');
+
+        $this->publishes([
             __DIR__.'/../resources/js' => resource_path('js/pages/payhub'),
         ], 'payhub-react');
 
