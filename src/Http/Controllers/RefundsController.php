@@ -2,17 +2,16 @@
 
 namespace Balerka\LaravelPayhub\Http\Controllers;
 
-use Balerka\LaravelPayhub\Support\CloudPaymentsClient;
 use Balerka\LaravelPayhub\Support\PayhubModels;
+use Balerka\LaravelPayhub\Support\RefundManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class RefundsController
 {
     public function __construct(
-        private readonly CloudPaymentsClient $cloudPayments,
+        private readonly RefundManager $refunds,
     ) {}
 
     public function data(Request $request): JsonResponse
@@ -65,15 +64,8 @@ class RefundsController
             ], 422);
         }
 
-        $payment = $this->cloudPayments->getPayment($transaction->transaction_id);
-        $status = is_array($payment) ? (string) ($payment['Status'] ?? '') : '';
         $amount = min((float) ($data['amount'] ?? $transaction->amount), (float) $transaction->amount);
-
-        $refunded = match ($status) {
-            'Authorized' => $this->cloudPayments->voidPayment($transaction->transaction_id),
-            'Completed' => $this->cloudPayments->refund($transaction->transaction_id, $amount),
-            default => false,
-        };
+        $refunded = $this->refunds->refund($transaction, $amount);
 
         if (! $refunded) {
             return response()->json([
@@ -81,25 +73,6 @@ class RefundsController
                 'error' => 'Unable to refund transaction.',
             ], 422);
         }
-
-        DB::transaction(function () use ($transaction, $amount): void {
-            $remainingAmount = round((float) $transaction->amount - $amount, 2);
-
-            if ($remainingAmount <= 0) {
-                $transaction->update([
-                    'amount' => 0,
-                    'fee' => 0,
-                    'status' => false,
-                ]);
-
-                $transaction->order?->update(['status' => 'cancelled']);
-
-                return;
-            }
-
-            $transaction->update(['amount' => $remainingAmount]);
-            $transaction->order?->update(['status' => 'paid']);
-        });
 
         return response()->json([
             'ok' => true,
