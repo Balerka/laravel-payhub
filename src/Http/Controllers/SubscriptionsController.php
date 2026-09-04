@@ -3,7 +3,9 @@
 namespace Balerka\LaravelPayhub\Http\Controllers;
 
 use Balerka\LaravelPayhub\Support\CloudPaymentsClient;
+use Balerka\LaravelPayhub\Support\GatewayResolver;
 use Balerka\LaravelPayhub\Support\PayhubModels;
+use Balerka\LaravelPayhub\Support\SubscriptionManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,14 +15,11 @@ class SubscriptionsController
 {
     public function __construct(
         private readonly CloudPaymentsClient $cloudPayments,
+        private readonly SubscriptionManager $subscriptions,
     ) {}
 
     public function data(Request $request): JsonResponse
     {
-        if ($response = $this->paymentDisabledResponse()) {
-            return $response;
-        }
-
         $subscriptionModel = PayhubModels::subscription();
 
         $subscriptions = $subscriptionModel::query()
@@ -37,17 +36,13 @@ class SubscriptionsController
 
         return response()->json([
             'ok' => true,
-            'subscriptions' => $subscriptions,
             'currencyCode' => config('payhub.currency', config('app.currency', 'RUB')),
+            'subscriptions' => $subscriptions,
         ]);
     }
 
     public function cancel(Request $request): JsonResponse
     {
-        if ($response = $this->paymentDisabledResponse()) {
-            return $response;
-        }
-
         $data = $request->validate([
             'subscription_id' => ['required', 'string'],
         ]);
@@ -62,7 +57,7 @@ class SubscriptionsController
         if (! $subscription) {
             return response()->json([
                 'ok' => false,
-                'error' => 'Subscription not found.',
+                'error' => __('Subscription not found'),
             ], 404);
         }
 
@@ -70,24 +65,18 @@ class SubscriptionsController
             return response()->json(['ok' => true]);
         }
 
-        if (! $this->cloudPayments->cancelSubscription($subscription->subscription_id)) {
+        if (! $this->subscriptions->cancel($subscription)) {
             return response()->json([
                 'ok' => false,
-                'error' => 'Unable to cancel subscription.',
+                'error' => __('Subscription cancel failed'),
             ], 422);
         }
-
-        $subscription->update(['status' => false]);
 
         return response()->json(['ok' => true]);
     }
 
     public function cancelByEmail(Request $request): JsonResponse
     {
-        if ($response = $this->paymentDisabledResponse()) {
-            return $response;
-        }
-
         $data = $request->validate([
             'email' => ['required', 'email'],
             'card' => ['required', 'digits:4'],
@@ -99,7 +88,7 @@ class SubscriptionsController
         if (! $user instanceof Model) {
             return response()->json([
                 'ok' => false,
-                'error' => 'Card not found.',
+                'error' => __('Card not found'),
                 'error_code' => 'card_not_found',
             ], 404);
         }
@@ -113,7 +102,7 @@ class SubscriptionsController
         if (! $hasCard) {
             return response()->json([
                 'ok' => false,
-                'error' => 'Card not found.',
+                'error' => __('Card not found'),
                 'error_code' => 'card_not_found',
             ], 404);
         }
@@ -127,53 +116,38 @@ class SubscriptionsController
         if (! $subscription) {
             return response()->json([
                 'ok' => false,
-                'error' => 'Subscription not found.',
+                'error' => __('Subscription not found'),
                 'error_code' => 'subscription_not_found',
             ], 404);
         }
 
-        if (! $this->cloudPayments->cancelSubscription($subscription->subscription_id)) {
+        if (! $this->subscriptions->cancel($subscription)) {
             return response()->json([
                 'ok' => false,
-                'error' => 'Unable to cancel subscription.',
+                'error' => __('Subscription cancel failed'),
                 'error_code' => 'subscription_cancel_failed',
             ], 422);
         }
-
-        $subscription->update(['status' => false]);
 
         return response()->json(['ok' => true]);
     }
 
     /**
-     * @return array{id: int, subscription_id: string, status: bool, next_transaction_at: string|null, amount: float|null, currency: string, description: string|null, interval: string|null, period: int|null}
+     * @return array{id: int, subscription_id: string, amount: float|null, currency: string|null, description: string|null, interval: string|null, period: int|null, status: bool, next_transaction_at: string|null}
      */
     private function subscriptionPayload(Model $subscription): array
     {
         return [
             'id' => $subscription->id,
             'subscription_id' => $subscription->subscription_id,
-            'status' => (bool) $subscription->status,
-            'next_transaction_at' => $subscription->next_transaction_at?->toISOString(),
             'amount' => $subscription->amount === null ? null : (float) $subscription->amount,
             'currency' => $subscription->currency,
             'description' => $subscription->description,
             'interval' => $subscription->interval,
-            'period' => $subscription->period,
+            'period' => $subscription->period === null ? null : (int) $subscription->period,
+            'status' => (bool) $subscription->status,
+            'next_transaction_at' => $subscription->next_transaction_at?->toISOString(),
         ];
-    }
-
-    private function paymentDisabledResponse(): ?JsonResponse
-    {
-        if (config('payhub.gateway')) {
-            return null;
-        }
-
-        return response()->json([
-            'ok' => false,
-            'error' => 'Payment disabled.',
-            'error_code' => 'payment_disabled',
-        ]);
     }
 
     /**
@@ -182,7 +156,9 @@ class SubscriptionsController
     private function hydrateMissingNextTransactionDates(Collection $subscriptions): void
     {
         $missingDates = $subscriptions->filter(
-            fn (Model $subscription): bool => (bool) $subscription->status && ! $subscription->next_transaction_at
+            fn (Model $subscription): bool => (bool) $subscription->status
+                && ! $subscription->next_transaction_at
+                && GatewayResolver::forTransaction($subscription->getAttribute('gateway')) === 'cloud_payments'
         );
 
         if ($missingDates->isEmpty()) {

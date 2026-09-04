@@ -13,11 +13,11 @@ class Order extends Model
     protected string $paymentTableKey = 'orders';
 
     protected $fillable = [
+        'idempotency_key',
         'user_id',
         'transaction_id',
         'amount',
         'currency',
-        'description',
         'receipt',
         'status',
     ];

@@ -6,8 +6,11 @@ use Balerka\LaravelPayhub\Models\Card;
 use Balerka\LaravelPayhub\Models\Order;
 use Balerka\LaravelPayhub\Models\Transaction;
 use Balerka\LaravelPayhub\Support\CloudPaymentsClient;
+use Balerka\LaravelPayhub\Support\SubscriptionManager;
 use Balerka\LaravelPayhub\Tests\Fixtures\User;
 use Balerka\LaravelPayhub\Tests\TestCase;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
 
 class CheckoutControllerTest extends TestCase
 {
@@ -61,6 +64,7 @@ class CheckoutControllerTest extends TestCase
 
         $this->actingAs($user)
             ->postJson('/payhub/checkout/orders', [
+                'idempotency_key' => 'checkout-pending-order',
                 'amount' => 990,
                 'currency' => 'RUB',
                 'description' => 'Premium',
@@ -99,6 +103,7 @@ class CheckoutControllerTest extends TestCase
 
         $this->actingAs($user)
             ->postJson('/payhub/checkout/orders', [
+                'idempotency_key' => 'checkout-invalid-receipt',
                 'amount' => 990,
                 'currency' => 'RUB',
                 'description' => 'Premium',
@@ -111,6 +116,65 @@ class CheckoutControllerTest extends TestCase
                 ],
             ])
             ->assertUnprocessable();
+
+        $this->assertSame(0, Order::query()->count());
+    }
+
+    public function test_checkout_order_stores_subscription_payload(): void
+    {
+        config()->set('payhub.gateway', 'test');
+
+        $user = User::query()->create(['name' => 'User']);
+
+        $this->actingAs($user)
+            ->postJson('/payhub/checkout/orders', [
+                'idempotency_key' => 'checkout-subscription-payload',
+                'amount' => 990,
+                'currency' => 'RUB',
+                'description' => 'Premium',
+                'subscription' => [
+                    'amount' => 1990,
+                    'currency' => 'RUB',
+                    'description' => 'Premium recurrent',
+                    'interval' => 'Month',
+                    'period' => 1,
+                    'start_in' => '7 Day',
+                    'metadata' => ['reference' => 'plan-10'],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $order = Order::query()->where('user_id', $user->id)->firstOrFail();
+
+        $this->assertSame('Premium recurrent', $order->receipt['subscription']['description']);
+        $this->assertEquals(1990.0, $order->receipt['subscription']['amount']);
+        $this->assertSame('plan-10', $order->receipt['subscription']['metadata']['reference']);
+    }
+
+    public function test_checkout_rejects_invalid_subscription_schedule(): void
+    {
+        config()->set('payhub.gateway', 'test');
+
+        $user = User::query()->create(['name' => 'User']);
+
+        $this->actingAs($user)
+            ->postJson('/payhub/checkout/orders', [
+                'idempotency_key' => 'checkout-invalid-subscription',
+                'amount' => 990,
+                'currency' => 'RUB',
+                'description' => 'Premium',
+                'subscription' => [
+                    'amount' => 1990,
+                    'currency' => 'RUB',
+                    'description' => 'Premium recurrent',
+                    'interval' => 'Year',
+                    'period' => 1,
+                    'start_in' => 'whenever',
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['subscription.interval', 'subscription.start_in']);
 
         $this->assertSame(0, Order::query()->count());
     }
@@ -131,7 +195,6 @@ class CheckoutControllerTest extends TestCase
             'user_id' => $user->id,
             'amount' => 990,
             'currency' => 'RUB',
-            'description' => 'Premium',
             'status' => 'pending',
         ]);
 
@@ -154,6 +217,7 @@ class CheckoutControllerTest extends TestCase
             'Model' => [
                 'TransactionId' => 'cp_token_123',
                 'TotalFee' => 39,
+                'VatAboveTotalFee' => 8.58,
             ],
         ]);
 
@@ -172,6 +236,7 @@ class CheckoutControllerTest extends TestCase
 
         $this->actingAs($user)
             ->postJson('/payhub/checkout/orders', [
+                'idempotency_key' => 'checkout-saved-cloud-card',
                 'amount' => 990,
                 'currency' => 'RUB',
                 'description' => 'Premium',
@@ -186,6 +251,139 @@ class CheckoutControllerTest extends TestCase
 
         $this->assertSame('paid', $order->status);
         $this->assertSame(1, Transaction::query()->where('transaction_id', 'cp_token_123')->count());
+        $this->assertEquals(8.58, Transaction::query()->where('transaction_id', 'cp_token_123')->value('vat'));
+    }
+
+    public function test_saved_card_checkout_is_idempotent(): void
+    {
+        config()->set('payhub.gateway', 'cloud_payments');
+        config()->set('payhub.gateways.cloud_payments.public_id', 'pk_test');
+        config()->set('payhub.gateways.cloud_payments.secret', 'secret');
+
+        $cloudPayments = new class extends CloudPaymentsClient
+        {
+            public int $charges = 0;
+
+            public function chargeByToken(
+                Model $card,
+                Model $order,
+                string $description,
+                string $email,
+                string $ipAddress,
+                ?string $requestId = null,
+            ): array
+            {
+                $this->charges++;
+
+                return [
+                    'Success' => filled($requestId),
+                    'Model' => ['TransactionId' => 'cp_idempotent'],
+                ];
+            }
+        };
+        $this->app->instance(CloudPaymentsClient::class, $cloudPayments);
+
+        $user = User::query()->create(['name' => 'User', 'email' => 'user@example.com']);
+        $card = Card::query()->create([
+            'user_id' => $user->id,
+            'token' => 'card-token',
+            'last4' => '4242',
+            'brand' => 'Visa',
+            'is_default' => true,
+        ]);
+        $payload = [
+            'idempotency_key' => 'checkout-idempotent-saved-card',
+            'amount' => 990,
+            'currency' => 'RUB',
+            'description' => 'Premium',
+            'card_id' => $card->id,
+        ];
+
+        $this->actingAs($user)->postJson('/payhub/checkout/orders', $payload)->assertOk();
+        $this->actingAs($user)->postJson('/payhub/checkout/orders', $payload)->assertOk();
+
+        $this->assertSame(1, $cloudPayments->charges);
+        $this->assertSame(1, Order::query()->count());
+        $this->assertSame(1, Transaction::query()->count());
+    }
+
+    public function test_saved_card_checkout_stays_paid_when_required_subscription_creation_fails(): void
+    {
+        config()->set('payhub.gateway', 'cloud_payments');
+        config()->set('payhub.gateways.cloud_payments.public_id', 'pk_test');
+        config()->set('payhub.gateways.cloud_payments.secret', 'secret');
+
+        $cloudPayments = new class extends CloudPaymentsClient
+        {
+            public int $charges = 0;
+
+            public function chargeByToken(
+                Model $card,
+                Model $order,
+                string $description,
+                string $email,
+                string $ipAddress,
+                ?string $requestId = null,
+            ): array
+            {
+                $this->charges++;
+
+                return [
+                    'Success' => true,
+                    'Model' => ['TransactionId' => 'cp_subscription_failure'],
+                ];
+            }
+        };
+        $this->app->instance(CloudPaymentsClient::class, $cloudPayments);
+        $this->app->instance(SubscriptionManager::class, new class extends SubscriptionManager
+        {
+            public function __construct() {}
+
+            public function requiresSubscription(Model $order): bool
+            {
+                return true;
+            }
+
+            public function createFromOrderPayment(Request $request, Model $order, ?string $token = null): ?Model
+            {
+                return null;
+            }
+        });
+
+        $user = User::query()->create(['name' => 'User', 'email' => 'user@example.com']);
+        $card = Card::query()->create([
+            'user_id' => $user->id,
+            'token' => 'card-token',
+            'last4' => '4242',
+            'brand' => 'Visa',
+            'is_default' => true,
+        ]);
+        $payload = [
+            'idempotency_key' => 'checkout-subscription-failure',
+            'amount' => 990,
+            'currency' => 'RUB',
+            'description' => 'Premium',
+            'card_id' => $card->id,
+            'subscription' => [
+                'amount' => 990,
+                'description' => 'Premium recurrent',
+                'interval' => 'Month',
+                'period' => 1,
+            ],
+        ];
+
+        $this->actingAs($user)
+            ->postJson('/payhub/checkout/orders', $payload)
+            ->assertStatus(409)
+            ->assertJsonPath('error_code', 'subscription_creation_failed')
+            ->assertJsonPath('payment_succeeded', true);
+        $this->actingAs($user)
+            ->postJson('/payhub/checkout/orders', $payload)
+            ->assertStatus(409);
+
+        $this->assertSame(1, $cloudPayments->charges);
+        $this->assertSame('paid', Order::query()->firstOrFail()->status);
+        $this->assertNotNull(Order::query()->firstOrFail()->transaction_id);
     }
 
     public function test_checkout_order_returns_error_when_saved_cloud_payments_card_charge_fails(): void
@@ -213,6 +411,7 @@ class CheckoutControllerTest extends TestCase
 
         $this->actingAs($user)
             ->postJson('/payhub/checkout/orders', [
+                'idempotency_key' => 'checkout-failed-cloud-card',
                 'amount' => 990,
                 'currency' => 'RUB',
                 'description' => 'Premium',
@@ -241,9 +440,16 @@ class CheckoutControllerTest extends TestCase
             /**
              * @return array<string, mixed>
              */
-            public function chargeByToken(Card $card, Order $order, string $email, string $ipAddress): array
+            public function chargeByToken(
+                Model $card,
+                Model $order,
+                string $description,
+                string $email,
+                string $ipAddress,
+                ?string $requestId = null,
+            ): array
             {
-                return $this->response;
+                return $requestId ? $this->response : ['Success' => false];
             }
         });
     }

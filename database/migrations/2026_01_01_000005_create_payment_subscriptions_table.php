@@ -9,6 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable(config('payhub.tables.subscriptions', 'payhub_subscriptions'))) {
+            return;
+        }
+
         Schema::create(config('payhub.tables.subscriptions', 'payhub_subscriptions'), function (Blueprint $table): void {
             $table->id();
             $table->string('subscription_id')->unique();
@@ -18,6 +22,7 @@ return new class extends Migration
             $table->string('description')->nullable();
             $table->string('interval')->nullable();
             $table->unsignedInteger('period')->nullable();
+            $table->string('gateway')->nullable();
             $table->boolean('status')->default(true);
             $table->timestamp('next_transaction_at')->nullable();
             $table->timestamps();
@@ -28,6 +33,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! config('payhub.drop_tables_on_rollback', false)) {
+            return;
+        }
+
         Schema::dropIfExists(config('payhub.tables.subscriptions', 'payhub_subscriptions'));
     }
 

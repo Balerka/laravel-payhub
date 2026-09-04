@@ -20,6 +20,7 @@ class Subscription extends Model
         'description',
         'interval',
         'period',
+        'gateway',
         'status',
         'next_transaction_at',
     ];
@@ -27,9 +28,10 @@ class Subscription extends Model
     protected function casts(): array
     {
         return [
+            'amount' => 'decimal:2',
+            'period' => 'integer',
             'status' => 'boolean',
             'next_transaction_at' => 'datetime',
-            'amount' => 'decimal:2',
         ];
     }
 

@@ -9,13 +9,17 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable(config('payhub.tables.orders', 'payhub_orders'))) {
+            return;
+        }
+
         Schema::create(config('payhub.tables.orders', 'payhub_orders'), function (Blueprint $table): void {
             $table->id();
+            $table->string('idempotency_key', 64)->nullable()->unique();
             $table->foreignId('user_id')->constrained($this->userTable())->cascadeOnDelete();
             $table->foreignId('transaction_id')->nullable()->constrained(config('payhub.tables.transactions', 'payhub_transactions'))->nullOnDelete();
             $table->decimal('amount', 10, 2)->default(0);
             $table->string('currency', 3)->default('RUB');
-            $table->string('description')->nullable();
             $table->json('receipt')->nullable();
             $table->enum('status', ['pending', 'paid', 'failed', 'authorized', 'cancelled'])->default('pending')->index();
             $table->timestamps();
@@ -24,6 +28,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! config('payhub.drop_tables_on_rollback', false)) {
+            return;
+        }
+
         Schema::dropIfExists(config('payhub.tables.orders', 'payhub_orders'));
     }
 

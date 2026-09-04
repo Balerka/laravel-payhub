@@ -31,7 +31,14 @@ class CloudPaymentsClient
     /**
      * @return array<string, mixed>
      */
-    public function chargeByToken(Model $card, Model $order, string $email, string $ipAddress): array
+    public function chargeByToken(
+        Model $card,
+        Model $order,
+        string $description,
+        string $email,
+        string $ipAddress,
+        ?string $requestId = null,
+    ): array
     {
         return $this->sendRequest('/payments/tokens/charge', [
             'Amount' => (float)$order->amount,
@@ -40,38 +47,40 @@ class CloudPaymentsClient
             'TrInitiatorCode' => 1,
             'Token' => $card->token,
             'InvoiceId' => (string)$order->id,
-            'Description' => $order->description ?: 'Payment',
+            'Description' => $description,
             'IpAddress' => $ipAddress,
             'Email' => $email,
             'JsonData' => json_encode([
                 'cloudpayments' => [
                     'CustomerReceipt' => $this->receipt(
-                        $order->description ?: 'Payment',
+                        $description,
                         (float)$order->amount,
                         $email,
                         $this->storedReceipt($order),
                     ),
                 ],
             ], JSON_THROW_ON_ERROR),
-        ]);
+        ], $requestId);
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<int, array<string, mixed>>|false
      */
-    public function getSubscriptions(int|string $accountId): array
+    public function getSubscriptions(int|string $accountId): array|false
     {
         if ($this->privateKey === '') {
-            return [];
+            return false;
         }
 
         $response = $this->sendRequest('/subscriptions/find', [
             'accountId' => $accountId,
         ]);
 
-        return ($response['Success'] ?? false) === true && is_array($response['Model'] ?? null)
-            ? $response['Model']
-            : [];
+        if (($response['Success'] ?? false) !== true) {
+            return false;
+        }
+
+        return is_array($response['Model'] ?? null) ? $response['Model'] : [];
     }
 
     /**
@@ -101,24 +110,26 @@ class CloudPaymentsClient
         ?string $interval,
         ?int    $period,
         array   $additionalParams = [],
+        ?string $requestId = null,
     ): ?array
     {
         $email = (string)($user->email ?? '');
-        $params = array_merge([
+        $currency = strtoupper((string) ($additionalParams['Currency'] ?? config('payhub.currency', config('app.currency', 'RUB'))));
+        $params = array_merge($additionalParams, [
             'Token' => $token,
             'AccountId' => $user->getKey(),
             'Description' => $description,
             'Amount' => $amount,
-            'Currency' => config('payhub.currency', config('app.currency', 'RUB')),
+            'Currency' => $currency,
             'RequireConfirmation' => true,
             'StartDate' => now()->add($startIn)->toAtomString(),
             'Interval' => $interval,
             'Period' => $period,
             'Email' => $email,
             'CustomerReceipt' => $this->receipt($description, $amount, $email),
-        ], $additionalParams);
+        ]);
 
-        $response = $this->sendRequest('/subscriptions/create', $params);
+        $response = $this->sendRequest('/subscriptions/create', $params, $requestId);
 
         return ($response['Success'] ?? false) === true && is_array($response['Model'] ?? null)
             ? $response['Model']
@@ -137,7 +148,7 @@ class CloudPaymentsClient
     /**
      * @param array<string, mixed> $updateParams
      */
-    public function updateSubscription(string $subscriptionId, array $updateParams): bool
+    public function updateSubscription(string $subscriptionId, array $updateParams = []): bool
     {
         $response = $this->sendRequest('/subscriptions/update', array_merge([
             'Id' => $subscriptionId,
@@ -146,21 +157,21 @@ class CloudPaymentsClient
         return ($response['Success'] ?? false) === true;
     }
 
-    public function confirmPayment(string $transactionId, float $amount): bool
+    public function confirmPayment(string $transactionId, float $amount, ?string $requestId = null): bool
     {
         $response = $this->sendRequest('/payments/confirm', [
             'TransactionId' => $transactionId,
             'Amount' => $amount,
-        ]);
+        ], $requestId);
 
         return ($response['Success'] ?? false) === true;
     }
 
-    public function voidPayment(string $transactionId): bool
+    public function voidPayment(string $transactionId, ?string $requestId = null): bool
     {
         $response = $this->sendRequest('/payments/void', [
             'TransactionId' => $transactionId,
-        ]);
+        ], $requestId);
 
         return ($response['Success'] ?? false) === true;
     }
@@ -179,26 +190,27 @@ class CloudPaymentsClient
             : false;
     }
 
-    public function refund(string $transactionId, float $amount): bool
+    public function refund(string $transactionId, float $amount, ?string $requestId = null): bool
     {
         $response = $this->sendRequest('/payments/refund', [
             'TransactionId' => $transactionId,
             'Amount' => $amount,
-        ]);
+        ], $requestId);
 
         return ($response['Success'] ?? false) === true;
     }
 
-    protected function getClient(): Client
+    protected function getClient(?string $requestId = null): Client
     {
         return new Client([
             'base_uri' => $this->baseUrl,
             'auth' => [$this->publicKey, $this->privateKey],
+            'connect_timeout' => 5,
             'timeout' => 20,
             'verify' => $this->enableSsl,
             'headers' => [
                 'Content-Type' => 'application/json',
-                'X-Request-ID' => Str::random(9),
+                'X-Request-ID' => $requestId ?: Str::random(9),
             ],
         ]);
     }
@@ -207,10 +219,10 @@ class CloudPaymentsClient
      * @param array<string, mixed> $params
      * @return array<string, mixed>
      */
-    protected function sendRequest(string $endpoint, array $params = []): array
+    protected function sendRequest(string $endpoint, array $params = [], ?string $requestId = null): array
     {
         try {
-            $response = $this->getClient()->post($endpoint, [
+            $response = $this->getClient($requestId)->post($endpoint, [
                 'json' => array_merge($params, ['CultureName' => $this->locale]),
             ]);
 
@@ -281,7 +293,7 @@ class CloudPaymentsClient
     /**
      * @return array<string, mixed>
      */
-    private function storedReceipt(Order $order): array
+    private function storedReceipt(Model $order): array
     {
         $receipt = $order->receipt;
 

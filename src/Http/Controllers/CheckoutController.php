@@ -21,9 +21,10 @@ class CheckoutController
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
+            'idempotency_key' => ['required', 'string', 'max:64'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'currency' => ['nullable', 'string', 'size:3'],
-            'description' => ['nullable', 'string', 'max:255'],
+            'description' => ['required', 'string', 'max:255'],
             'receipt' => ['nullable', 'array'],
             'receipt.email' => ['nullable', 'email'],
             'receipt.amounts' => ['nullable', 'array'],
@@ -51,6 +52,16 @@ class CheckoutController
             'items.*.object' => ['nullable', 'integer'],
             'items.*.measurement_unit' => ['nullable', 'string', 'max:64'],
             'items.*.measurementUnit' => ['nullable', 'string', 'max:64'],
+            'subscription' => ['nullable', 'array'],
+            'subscription.enabled' => ['nullable', 'boolean'],
+            'subscription.amount' => ['required_with:subscription', 'numeric', 'min:0.01'],
+            'subscription.currency' => ['nullable', 'string', 'size:3'],
+            'subscription.description' => ['required_with:subscription', 'string', 'max:255'],
+            'subscription.interval' => ['required_with:subscription', 'string', 'in:Day,Week,Month'],
+            'subscription.period' => ['required_with:subscription', 'integer', 'min:1'],
+            'subscription.start_in' => ['nullable', 'string', 'regex:/^\d+\s+(Minute|Hour|Day|Week|Month|Year)s?$/i'],
+            'subscription.metadata' => ['nullable', 'array'],
+            'subscription.params' => ['nullable', 'array'],
             'card_id' => ['nullable', 'integer'],
         ]);
 

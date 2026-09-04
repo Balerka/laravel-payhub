@@ -5,13 +5,13 @@ import { type PayhubMessagesInput, resolvePayhubMessages } from '../translations
 export type PayhubSubscription = {
     id: number;
     subscription_id: string;
-    status: boolean;
-    next_transaction_at: string | null;
     amount: number | null;
-    currency: string;
+    currency: string | null;
     description: string | null;
     interval: string | null;
     period: number | null;
+    status: boolean;
+    next_transaction_at: string | null;
 };
 
 type SubscriptionsResponse = {

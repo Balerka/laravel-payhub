@@ -18,6 +18,7 @@ class Transaction extends Model
         'transaction_id',
         'amount',
         'fee',
+        'vat',
         'status',
         'gateway',
     ];
@@ -31,13 +32,14 @@ class Transaction extends Model
         return [
             'amount' => 'decimal:2',
             'fee' => 'decimal:2',
+            'vat' => 'decimal:2',
             'status' => 'boolean',
         ];
     }
 
     public function getIncomeAttribute(): float
     {
-        return (float) $this->amount - (float) $this->fee;
+        return (float) $this->amount - (float) $this->fee - (float) ($this->vat ?? 0);
     }
 
     public function order(): HasOne

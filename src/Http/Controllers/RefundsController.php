@@ -53,14 +53,14 @@ class RefundsController
         if (! $transaction || ! $transaction->transaction_id) {
             return response()->json([
                 'ok' => false,
-                'error' => 'Transaction not found.',
+                'error' => __('Transaction not found.'),
             ], 404);
         }
 
         if (! $transaction->status) {
             return response()->json([
                 'ok' => false,
-                'error' => 'Transaction is already refunded or failed.',
+                'error' => __('Transaction is already refunded or failed.'),
             ], 422);
         }
 
@@ -70,7 +70,7 @@ class RefundsController
         if (! $refunded) {
             return response()->json([
                 'ok' => false,
-                'error' => 'Unable to refund transaction.',
+                'error' => __('Unable to refund transaction.'),
             ], 422);
         }
 
@@ -81,7 +81,7 @@ class RefundsController
     }
 
     /**
-     * @return array{id: int, transaction_id: string|null, amount: float, fee: float, income: float, status: bool, gateway: string|null, created_at: string|null, order: array{id: int, status: string, amount: float, currency: string, description: string|null}|null}
+     * @return array{id: int, transaction_id: string|null, amount: float, fee: float, vat: float|null, income: float, status: bool, gateway: string|null, created_at: string|null, order: array{id: int, status: string, amount: float, currency: string}|null}
      */
     private function transactionPayload(Model $transaction): array
     {
@@ -92,6 +92,7 @@ class RefundsController
             'transaction_id' => $transaction->transaction_id,
             'amount' => (float) $transaction->amount,
             'fee' => (float) $transaction->fee,
+            'vat' => $transaction->vat === null ? null : (float) $transaction->vat,
             'income' => (float) $transaction->income,
             'status' => (bool) $transaction->status,
             'gateway' => $transaction->gateway,
@@ -101,7 +102,6 @@ class RefundsController
                 'status' => $order->status,
                 'amount' => (float) $order->amount,
                 'currency' => $order->currency,
-                'description' => $order->description,
             ] : null,
         ];
     }

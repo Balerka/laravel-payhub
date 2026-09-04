@@ -2,17 +2,22 @@
 
 namespace App\Models;
 
+use Balerka\LaravelPayhub\Models\Concerns\UsesPaymentTable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Order extends Model
 {
+    use UsesPaymentTable;
+
+    protected string $paymentTableKey = 'orders';
+
     protected $fillable = [
+        'idempotency_key',
         'user_id',
         'transaction_id',
         'amount',
         'currency',
-        'description',
         'receipt',
         'status',
     ];

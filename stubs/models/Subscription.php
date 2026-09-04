@@ -2,11 +2,16 @@
 
 namespace App\Models;
 
+use Balerka\LaravelPayhub\Models\Concerns\UsesPaymentTable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Subscription extends Model
 {
+    use UsesPaymentTable;
+
+    protected string $paymentTableKey = 'subscriptions';
+
     protected $fillable = [
         'subscription_id',
         'user_id',
@@ -15,6 +20,7 @@ class Subscription extends Model
         'description',
         'interval',
         'period',
+        'gateway',
         'status',
         'next_transaction_at',
     ];
@@ -23,6 +29,7 @@ class Subscription extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'period' => 'integer',
             'next_transaction_at' => 'datetime',
             'status' => 'boolean',
         ];

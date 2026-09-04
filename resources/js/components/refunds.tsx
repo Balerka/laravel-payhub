@@ -96,7 +96,7 @@ export function PayhubRefunds({
                     <div key={transaction.id} className="rounded-lg border p-4">
                         <div className="flex items-start justify-between gap-4">
                             <div className="min-w-0">
-                                <div className="font-medium">{transaction.order?.description ?? resolvedMessages.refunds.transaction}</div>
+                                <div className="font-medium">{resolvedMessages.refunds.transaction}</div>
                                 <div className="mt-1 text-sm text-gray-500">
                                     {formatAmount(transaction.amount, currencyCode, locale)}
                                     {transaction.created_at ? ` · ${formatDate(transaction.created_at, locale)}` : ''}

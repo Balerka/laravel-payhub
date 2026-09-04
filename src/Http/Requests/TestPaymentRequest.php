@@ -18,7 +18,7 @@ class TestPaymentRequest extends FormRequest
         return [
             'amount' => ['required', 'numeric', 'min:0.01'],
             'currency' => ['nullable', 'string', 'size:3'],
-            'description' => ['nullable', 'string', 'max:255'],
+            'description' => ['required', 'string', 'max:255'],
             'receipt' => ['nullable', 'array'],
             'receipt.email' => ['nullable', 'email'],
             'receipt.amounts' => ['nullable', 'array'],
@@ -51,6 +51,9 @@ class TestPaymentRequest extends FormRequest
             'card_bank' => ['nullable', 'string', 'max:255'],
             'card_brand' => ['nullable', 'string', 'max:255'],
             'subscription_id' => ['nullable', 'string', 'max:255'],
+            'subscription_amount' => ['nullable', 'numeric', 'min:0.01'],
+            'subscription_currency' => ['nullable', 'string', 'size:3'],
+            'subscription_description' => ['nullable', 'string', 'max:255'],
             'interval' => ['nullable', 'string', 'max:255'],
             'period' => ['nullable', 'integer', 'min:1'],
             'next_transaction_at' => ['nullable', 'date'],

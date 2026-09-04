@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type PaymentCard } from './payment-cards';
 import { formatPayhubMessage, type PayhubMessagesInput, resolvePayhubMessages } from '../translations';
 
@@ -49,6 +49,7 @@ export type CheckoutPayment = {
     description?: string | null;
     receipt?: CheckoutReceipt | null;
     items?: CheckoutItem[];
+    subscription?: Record<string, unknown> | null;
 };
 
 export type CheckoutProps = CheckoutPayment & {
@@ -68,7 +69,6 @@ type OrderResponse = {
         id: number;
         amount: number;
         currency: string;
-        description?: string | null;
     };
     payment?: {
         gateway?: string;
@@ -83,6 +83,7 @@ type OrderResponse = {
         email?: string;
         unit?: string;
         receipt?: CheckoutReceipt;
+        subscription?: Record<string, unknown> | null;
         items?: Array<{
             label: string;
             price: number;
@@ -134,6 +135,19 @@ type ResolvedCheckoutEndpoints = {
     cancelOrder: (orderId: number) => string;
     testPay: string | null;
 };
+
+type CheckoutAttempt = {
+    fingerprint: string;
+    idempotencyKey: string;
+};
+
+function createIdempotencyKey(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 const defaultEndpoints: ResolvedCheckoutEndpoints = {
     data: '/payhub/checkout/data',
@@ -303,12 +317,29 @@ function resolveError(error: unknown, fallback: string): string {
     return fallback;
 }
 
+function testSubscriptionPayload(subscription: Record<string, unknown> | null | undefined, orderId: number): Record<string, unknown> {
+    if (!subscription) {
+        return {};
+    }
+
+    return {
+        subscription_id: String(subscription.subscription_id ?? `test-subscription-${orderId}`),
+        subscription_amount: subscription.amount,
+        subscription_currency: subscription.currency,
+        subscription_description: subscription.description,
+        interval: subscription.interval,
+        period: subscription.period,
+        next_transaction_at: subscription.next_transaction_at,
+    };
+}
+
 export function Checkout({
     amount,
     currency,
     description = null,
     receipt = null,
     items = [],
+    subscription = null,
     cards: initialCards,
     selectedCardId: initialSelectedCardId = null,
     endpoints = {},
@@ -337,6 +368,7 @@ export function Checkout({
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [testPaymentDebug, setTestPaymentDebug] = useState<TestPaymentDebug | null>(null);
+    const checkoutAttempt = useRef<CheckoutAttempt | null>(null);
     const gatewayCode = resolvedGateway.code ?? 'test';
     const gatewayEnabled = resolvedGateway.enabled ?? (gatewayCode === 'test');
     const testMode = resolvedGateway.testMode ?? (gatewayCode === 'test');
@@ -354,6 +386,7 @@ export function Checkout({
         currency: payment.currency,
         description,
     });
+    const paymentDescription = resolvedReceipt.description ?? 'Payment';
 
     const loadCheckoutData = useCallback(async (): Promise<void> => {
         if (initialCards !== undefined) {
@@ -414,12 +447,31 @@ export function Checkout({
         setTestPaymentDebug(null);
 
         try {
-            const orderResponse = await axios.post<OrderResponse>(resolvedEndpoints.storeOrder, {
+            const fingerprint = JSON.stringify({
                 amount,
                 currency: payment.currency,
-                description,
+                description: paymentDescription,
                 receipt: resolvedReceipt,
                 items,
+                subscription,
+                cardId: selectedCardId,
+            });
+
+            if (checkoutAttempt.current?.fingerprint !== fingerprint) {
+                checkoutAttempt.current = {
+                    fingerprint,
+                    idempotencyKey: createIdempotencyKey(),
+                };
+            }
+
+            const orderResponse = await axios.post<OrderResponse>(resolvedEndpoints.storeOrder, {
+                idempotency_key: checkoutAttempt.current.idempotencyKey,
+                amount,
+                currency: payment.currency,
+                description: paymentDescription,
+                receipt: resolvedReceipt,
+                items,
+                subscription,
                 card_id: selectedCardId,
             });
 
@@ -516,10 +568,12 @@ export function Checkout({
                         },
                         onFail: (reason) => {
                             if (isUserCancelledReason(reason)) {
+                                checkoutAttempt.current = null;
                                 void axios.delete(resolvedEndpoints.cancelOrder(orderId));
                                 return;
                             }
 
+                            checkoutAttempt.current = null;
                             setErrorMessage(reason || resolvedMessages.checkout.loadError);
                         },
                         onComplete: () => {
@@ -541,13 +595,14 @@ export function Checkout({
                 order_id: orderId,
                 amount,
                 currency: payment.currency,
-                description,
+                description: paymentDescription,
                 receipt: resolvedReceipt,
                 items,
                 card_token: `test-token-${orderResponse.data.payment?.accountId ?? 'user'}-${last4}`,
                 card_last4: last4,
                 card_brand: 'Visa',
                 card_bank: 'Test Bank',
+                ...testSubscriptionPayload(orderResponse.data.payment?.subscription, orderId),
             });
 
             setSuccessMessage(resolvedMessages.checkout.paymentCompleted);

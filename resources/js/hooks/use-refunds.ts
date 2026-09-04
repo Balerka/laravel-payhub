@@ -16,7 +16,6 @@ export type PayhubRefundTransaction = {
         status: string | null;
         amount: number;
         currency: string;
-        description: string | null;
     } | null;
 };
 

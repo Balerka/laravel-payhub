@@ -87,7 +87,7 @@ Payhub does not manage products or catalogs. Your application owns product selec
 
 - `amount` - required payment amount
 - `currency` - optional ISO currency code, defaults to `PAYHUB_CURRENCY`
-- `description` - optional text sent to the gateway
+- `description` - required gateway payment description supplied by the host project
 - `receipt` - optional full receipt object with `items`, `email`, `amounts`, `currency`, `description`, and any gateway-specific receipt data
 - `items` - shorthand for `receipt.items` if you do not need to pass the full receipt object
 
@@ -166,7 +166,7 @@ Routes are registered with the `payhub.` name prefix and use `/payhub` as the de
 
 - `GET /payhub/cards/data` returns cards as JSON.
 - `GET /payhub/checkout/data` returns gateway metadata and saved cards as JSON.
-- `POST /payhub/checkout/orders` creates a pending order from `amount`, `currency`, `description`, and optional `receipt`. Payhub stores the full receipt object on the order. When `card_id` is passed with the `cloud_payments` gateway, Payhub charges that saved card token through CloudPayments.
+- `POST /payhub/checkout/orders` idempotently creates a pending order from the required `idempotency_key`, `amount`, `description`, optional `currency`, `receipt`, and subscription metadata. Payhub stores the full receipt object on the order. When `card_id` is passed with the `cloud_payments` gateway, Payhub charges that saved card token through CloudPayments.
 - `DELETE /payhub/checkout/orders/{order}` cancels a pending order.
 - `PUT /payhub/cards/default` sets the default card.
 - `DELETE /payhub/cards/{card}` deletes a card owned by the current user.
@@ -175,14 +175,14 @@ Routes are registered with the `payhub.` name prefix and use `/payhub` as the de
 - `POST /payhub/subscriptions/cancel-by-email` cancels an active subscription by customer email and saved card last four digits.
 - `GET /payhub/refunds/data` returns refundable payment transactions owned by the current user.
 - `POST /payhub/refunds/refund` refunds or voids a current user's CloudPayments payment transaction.
-- `POST /payhub/payments/test/pay` creates a local test payment when `payhub.test_mode=true`.
+- `POST /payhub/payments/test/pay` creates a local test payment only when `payhub.gateway=test` and `payhub.test_mode=true`.
 
 For checkout, cards, subscriptions, and refunds UI, publish the React assets and embed `Checkout`, `PaymentCards`, `PayhubSubscriptions`, or `PayhubRefunds` in any application page. Payhub does not register page routes for these components.
 For a custom frontend, call the JSON endpoints directly and send `Accept: application/json` when you want JSON responses from mutation endpoints.
 
 ## Configuration
 
-`config/payhub.php` controls route prefix, model classes, table names, user model, currency, test mode, and gateway metadata. Payhub does not add application auth/session middleware to its own JSON routes; the host project decides how those URLs are exposed and called. CloudPayments callbacks are the only routes with Payhub middleware.
+`config/payhub.php` controls route prefix, route middleware, model classes, table names, user model, currency, test mode, and gateway metadata. User payment routes use `web` and `auth` middleware by default, the public cancellation route uses `web` and throttling, and CloudPayments callbacks use signature verification without session or CSRF middleware.
 
 Set checkout currency with:
 

@@ -6,13 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 class CheckoutManager
 {
     public function __construct(
         private readonly CloudPaymentsClient $cloudPayments,
+        private readonly SubscriptionManager $subscriptions,
     ) {}
 
     /**
@@ -33,23 +33,56 @@ class CheckoutManager
      */
     public function store(Request $request, array $data): JsonResponse
     {
+        if (! GatewayResolver::enabled($this->gatewayCode())) {
+            return response()->json([
+                'ok' => false,
+                'error' => __('Payment disabled'),
+                'error_code' => 'payment_disabled',
+            ], 403);
+        }
+
         $card = $this->selectedCard($request, $data['card_id'] ?? null);
         $currency = strtoupper((string) ($data['currency'] ?? config('payhub.currency', config('app.currency', 'RUB'))));
         $amount = (float) $data['amount'];
-        $receipt = $this->receipt($request, $data, $amount, $currency);
+        $description = (string) $data['description'];
+        $receipt = $this->receipt($request, $data, $amount, $currency, $description);
+        $receipt['_payhub'] = [
+            'card_id' => $card?->getKey(),
+        ];
 
-        $orderModel = PayhubModels::order();
-        $order = $orderModel::query()->create([
+        $order = $this->resolveCheckoutOrder([
+            'idempotency_key' => (string) $data['idempotency_key'],
             'user_id' => $request->user()->id,
             'amount' => $amount,
             'currency' => $currency,
-            'description' => $data['description'] ?? null,
             'receipt' => $receipt,
             'status' => 'pending',
         ]);
 
+        if (! $order) {
+            return $this->checkoutConflictResponse();
+        }
+
+        if (in_array($order->status, ['paid', 'authorized'], true) && $order->transaction_id !== null) {
+            $transaction = $this->attachedTransaction($order);
+
+            if (! $transaction) {
+                return $this->checkoutConflictResponse();
+            }
+
+            if ($card) {
+                return $this->completeSavedCardPayment($request, $order, $transaction, $card);
+            }
+
+            return $this->savedCardResponse($order, $transaction);
+        }
+
+        if ($order->status !== 'pending') {
+            return $this->checkoutConflictResponse();
+        }
+
         if ($card && $this->gatewayCode() === 'cloud_payments') {
-            return $this->chargeSavedCloudPaymentsCard($request, $order, $card);
+            return $this->chargeSavedCloudPaymentsCard($request, $order, $card, $description);
         }
 
         if ($card && $this->gatewayCode() === 'test') {
@@ -60,7 +93,7 @@ class CheckoutManager
             'ok' => true,
             'flow' => $this->gatewayCode() === 'cloud_payments' ? 'cloudpayments' : 'test',
             'order' => $this->orderPayload($order),
-            'payment' => $this->paymentPayload($request, $order),
+            'payment' => $this->paymentPayload($request, $order, $description),
         ]);
     }
 
@@ -83,21 +116,31 @@ class CheckoutManager
         return $this->emptyResponse($request);
     }
 
-    private function chargeSavedCloudPaymentsCard(Request $request, Model $order, Model $card): JsonResponse
+    private function chargeSavedCloudPaymentsCard(Request $request, Model $order, Model $card, string $description): JsonResponse
     {
+        if ($order->transaction_id !== null) {
+            $transaction = $this->attachedTransaction($order, 'cloud_payments');
+
+            return $transaction
+                ? $this->completeSavedCardPayment($request, $order, $transaction, $card)
+                : $this->checkoutConflictResponse();
+        }
+
         try {
             $response = $this->cloudPayments->chargeByToken(
                 $card,
                 $order,
+                $description,
                 (string) ($request->user()->email ?? ''),
                 $request->ip() ?? '',
+                $this->paymentRequestId($order),
             );
         } catch (Throwable $throwable) {
             report($throwable);
 
             return response()->json([
                 'ok' => false,
-                'error' => 'Unable to charge saved card.',
+                'error' => __('Unable to charge saved card.'),
             ], 422);
         }
 
@@ -108,34 +151,80 @@ class CheckoutManager
             ], 422);
         }
 
-        $transaction = DB::transaction(function () use ($order, $response): Model {
-            $model = is_array($response['Model'] ?? null) ? $response['Model'] : [];
-            $transactionId = $model['TransactionId'] ?? $response['TransactionId'] ?? 'cloud-payments-token-'.$order->id;
-            $transactionModel = PayhubModels::transaction();
+        $model = is_array($response['Model'] ?? null) ? $response['Model'] : [];
+        $transactionId = $model['TransactionId'] ?? $response['TransactionId'] ?? null;
 
-            $transaction = $transactionModel::query()->firstOrCreate(
-                ['transaction_id' => $transactionId],
-                [
-                    'user_id' => $order->user_id,
-                    'amount' => (float) $order->amount,
-                    'fee' => (float) ($model['TotalFee'] ?? $response['TotalFee'] ?? 0),
-                    'status' => true,
-                    'gateway' => 'CloudPayments',
-                ],
-            );
+        if (! is_scalar($transactionId) || (string) $transactionId === '') {
+            return $this->checkoutConflictResponse();
+        }
 
-            $order->update([
-                'transaction_id' => $transaction->id,
-                'status' => 'paid',
-            ]);
+        $vat = $model['VatAboveTotalFee'] ?? $response['VatAboveTotalFee'] ?? null;
+        $transaction = $this->recordTransaction(
+            $order,
+            (string) $transactionId,
+            (float) ($model['TotalFee'] ?? $response['TotalFee'] ?? 0),
+            is_numeric($vat) ? (float) $vat : null,
+            'CloudPayments',
+        );
 
-            return $transaction;
-        });
+        return $transaction
+            ? $this->completeSavedCardPayment($request, $order->refresh(), $transaction, $card)
+            : $this->checkoutConflictResponse();
+    }
 
+    private function chargeSavedTestCard(Model $order, Model $card): JsonResponse
+    {
+        $fee = GatewayFees::fee((float) $order->amount, 'test');
+        $transaction = $order->transaction_id === null
+            ? $this->recordTransaction(
+                $order,
+                'test-saved-card-'.$order->id.'-'.$card->id,
+                $fee,
+                GatewayFees::vat($fee, 'test'),
+                'TestSavedCard',
+            )
+            : $this->attachedTransaction($order, 'test');
+
+        if (! $transaction) {
+            return $this->checkoutConflictResponse();
+        }
+
+        return $this->completeSavedCardPayment(
+            Request::create('', 'POST'),
+            $order->refresh(),
+            $transaction,
+            $card,
+        );
+    }
+
+    private function completeSavedCardPayment(Request $request, Model $order, Model $transaction, Model $card): JsonResponse
+    {
+        if ($order->status === 'pending') {
+            $order->update(['status' => 'paid']);
+        }
+
+        if (
+            $this->subscriptions->requiresSubscription($order)
+            && ! $this->subscriptions->createFromOrderPayment($request, $order, (string) $card->token)
+        ) {
+            return response()->json([
+                'ok' => false,
+                'error' => __('Payment succeeded, but recurring subscription could not be created.'),
+                'error_code' => 'subscription_creation_failed',
+                'payment_succeeded' => true,
+                'order' => $this->orderPayload($order->refresh()),
+            ], 409);
+        }
+
+        return $this->savedCardResponse($order->refresh(), $transaction);
+    }
+
+    private function savedCardResponse(Model $order, Model $transaction): JsonResponse
+    {
         return response()->json([
             'ok' => true,
             'flow' => 'saved_card',
-            'order' => $this->orderPayload($order->refresh()),
+            'order' => $this->orderPayload($order),
             'transaction' => [
                 'id' => $transaction->id,
                 'transaction_id' => $transaction->transaction_id,
@@ -143,36 +232,158 @@ class CheckoutManager
         ]);
     }
 
-    private function chargeSavedTestCard(Model $order, Model $card): JsonResponse
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function resolveCheckoutOrder(array $attributes): ?Model
     {
-        $transaction = DB::transaction(function () use ($order, $card): Model {
-            $transactionModel = PayhubModels::transaction();
-            $transaction = $transactionModel::query()->create([
-                'user_id' => $order->user_id,
-                'transaction_id' => 'test-saved-card-'.$order->id.'-'.$card->id,
-                'amount' => (float) $order->amount,
-                'fee' => $this->testFee((float) $order->amount),
-                'status' => true,
-                'gateway' => 'TestSavedCard',
-            ]);
+        $orderModel = PayhubModels::order();
+        $idempotencyKey = (string) $attributes['idempotency_key'];
+        $order = $orderModel::query()->createOrFirst(
+            ['idempotency_key' => $idempotencyKey],
+            $attributes,
+        );
 
-            $order->update([
-                'transaction_id' => $transaction->id,
-                'status' => 'paid',
-            ]);
+        if (
+            (int) $order->user_id !== (int) $attributes['user_id']
+            || ! $this->amountsMatch((float) $order->amount, (float) $attributes['amount'])
+            || strtoupper((string) $order->currency) !== (string) $attributes['currency']
+            || $this->storedReceipt($order) != $attributes['receipt']
+        ) {
+            return null;
+        }
+
+        return $order;
+    }
+
+    private function recordTransaction(
+        Model $order,
+        string $transactionId,
+        float $fee,
+        ?float $vat,
+        string $gateway,
+    ): ?Model {
+        return $order->getConnection()->transaction(function () use ($order, $transactionId, $fee, $vat, $gateway): ?Model {
+            $lockedOrder = $order->newQuery()
+                ->whereKey($order->getKey())
+                ->lockForUpdate()
+                ->first();
+
+            if (! $lockedOrder) {
+                return null;
+            }
+
+            $transactionModel = PayhubModels::transaction();
+
+            if ($lockedOrder->transaction_id !== null) {
+                $transaction = $transactionModel::query()
+                    ->whereKey($lockedOrder->transaction_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                return $transaction && $this->transactionMatchesOrder($transaction, $lockedOrder, $gateway)
+                    ? $transaction
+                    : null;
+            }
+
+            $transaction = $transactionModel::query()->firstOrCreate(
+                ['transaction_id' => $transactionId],
+                [
+                    'user_id' => $lockedOrder->user_id,
+                    'amount' => (float) $lockedOrder->amount,
+                    'fee' => $fee,
+                    'vat' => $vat,
+                    'status' => true,
+                    'gateway' => $gateway,
+                ],
+            );
+            $transaction = $transactionModel::query()
+                ->whereKey($transaction->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! $this->transactionMatchesOrder($transaction, $lockedOrder, $gateway)) {
+                return null;
+            }
+
+            $usedByAnotherOrder = $order->newQuery()
+                ->where('transaction_id', $transaction->getKey())
+                ->whereKeyNot($lockedOrder->getKey())
+                ->exists();
+
+            if ($usedByAnotherOrder) {
+                return null;
+            }
+
+            $updates = [];
+
+            if ((float) $transaction->fee === 0.0 && $fee > 0) {
+                $updates['fee'] = $fee;
+            }
+
+            if ($transaction->vat === null && $vat !== null) {
+                $updates['vat'] = $vat;
+            }
+
+            if ($updates !== []) {
+                $transaction->update($updates);
+            }
+
+            $lockedOrder->update(['transaction_id' => $transaction->getKey()]);
 
             return $transaction;
         });
+    }
 
+    private function attachedTransaction(Model $order, ?string $expectedGateway = null): ?Model
+    {
+        if ($order->transaction_id === null) {
+            return null;
+        }
+
+        $transactionModel = PayhubModels::transaction();
+        $transaction = $transactionModel::query()->whereKey($order->transaction_id)->first();
+
+        if (! $transaction) {
+            return null;
+        }
+
+        $gateway = $expectedGateway ?? GatewayResolver::forTransaction($transaction->gateway);
+
+        return $this->transactionMatchesOrder($transaction, $order, $gateway) ? $transaction : null;
+    }
+
+    private function transactionMatchesOrder(Model $transaction, Model $order, string $gateway): bool
+    {
+        return (int) $transaction->user_id === (int) $order->user_id
+            && (bool) $transaction->status
+            && $this->amountsMatch((float) $transaction->amount, (float) $order->amount)
+            && GatewayResolver::forTransaction($transaction->gateway) === GatewayResolver::forTransaction($gateway);
+    }
+
+    private function amountsMatch(float $first, float $second): bool
+    {
+        return abs($first - $second) < 0.01;
+    }
+
+    private function paymentRequestId(Model $order): string
+    {
+        return hash('sha256', implode('|', [
+            (string) config('app.key'),
+            $order->getConnectionName() ?? '',
+            $order->getTable(),
+            (string) $order->getKey(),
+            'saved-card-charge',
+        ]));
+    }
+
+    private function checkoutConflictResponse(): JsonResponse
+    {
         return response()->json([
-            'ok' => true,
-            'flow' => 'saved_card',
-            'order' => $this->orderPayload($order->refresh()),
-            'transaction' => [
-                'id' => $transaction->id,
-                'transaction_id' => $transaction->transaction_id,
-            ],
-        ]);
+            'ok' => false,
+            'error' => __('Checkout request conflicts with an existing payment.'),
+            'error_code' => 'checkout_conflict',
+        ], 409);
     }
 
     private function selectedCard(Request $request, mixed $cardId): ?Model
@@ -229,7 +440,7 @@ class CheckoutManager
 
         return [
             'code' => $gatewayCode,
-            'enabled' => $this->gatewayEnabled($gatewayCode),
+            'enabled' => GatewayResolver::enabled($gatewayCode),
             'testMode' => $gatewayCode === 'test',
             'publicId' => $gatewayCode === 'cloud_payments'
                 ? config('payhub.gateways.cloud_payments.public_id')
@@ -239,25 +450,11 @@ class CheckoutManager
 
     private function gatewayCode(): string
     {
-        $gatewayCode = (string) config('payhub.gateway', 'test');
-
-        return array_key_exists($gatewayCode, (array) config('payhub.gateways', []))
-            ? $gatewayCode
-            : 'test';
-    }
-
-    private function gatewayEnabled(string $gatewayCode): bool
-    {
-        return match ($gatewayCode) {
-            'test' => (bool) config('payhub.test_mode'),
-            'cloud_payments' => filled(config('payhub.gateways.cloud_payments.public_id'))
-                && filled(config('payhub.gateways.cloud_payments.secret')),
-            default => false,
-        };
+        return GatewayResolver::active();
     }
 
     /**
-     * @return array{id: int, amount: float, currency: string, description: string|null, status: string}
+     * @return array{id: int, amount: float, currency: string, status: string}
      */
     private function orderPayload(Model $order): array
     {
@@ -265,24 +462,24 @@ class CheckoutManager
             'id' => $order->id,
             'amount' => (float) $order->amount,
             'currency' => $order->currency,
-            'description' => $order->description,
             'status' => $order->status,
         ];
     }
 
     /**
-     * @return array{gateway: string, publicId: string|null, description: string, quantity: int, price: float, amount: float, currency: string, accountId: int, orderId: int, email: string, unit: string, receipt: array<string, mixed>, items: array<int, array<string, mixed>>}
+     * @return array{gateway: string, publicId: string|null, description: string, quantity: int, price: float, amount: float, currency: string, accountId: int, orderId: int, email: string, unit: string, receipt: array<string, mixed>, items: array<int, array<string, mixed>>, subscription: array<string, mixed>|null}
      */
-    private function paymentPayload(Request $request, Model $order): array
+    private function paymentPayload(Request $request, Model $order, string $description): array
     {
         $receipt = $this->storedReceipt($order);
+        unset($receipt['_payhub']);
 
         return [
             'gateway' => $this->gatewayCode(),
             'publicId' => $this->gatewayCode() === 'cloud_payments'
                 ? config('payhub.gateways.cloud_payments.public_id')
                 : null,
-            'description' => $order->description ?: 'Payment',
+            'description' => $description,
             'quantity' => 1,
             'price' => (float) $order->amount,
             'amount' => (float) $order->amount,
@@ -293,14 +490,15 @@ class CheckoutManager
             'unit' => 'payment',
             'receipt' => $receipt,
             'items' => $receipt['items'] ?? [],
+            'subscription' => is_array($receipt['subscription'] ?? null) ? $receipt['subscription'] : null,
         ];
     }
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{items: array<int, array{label: string, price: float, quantity: float, amount: float, vat: mixed, method: int, object: int, measurementUnit: string}>, email: string, amounts: array<string, float>, currency: string, description: string}
+     * @return array{items: array<int, array{label: string, price: float, quantity: float, amount: float, vat: mixed, method: int, object: int, measurementUnit: string}>, email: string, amounts: array<string, float>, currency: string, description: string, subscription: array<string, mixed>|null}
      */
-    private function receipt(Request $request, array $data, float $amount, string $currency): array
+    private function receipt(Request $request, array $data, float $amount, string $currency, string $description): array
     {
         $receipt = is_array($data['receipt'] ?? null) ? $data['receipt'] : [];
         $receiptItems = is_array($receipt['items'] ?? null) ? $receipt['items'] : ($data['items'] ?? []);
@@ -312,7 +510,7 @@ class CheckoutManager
 
         if ($items === []) {
             $items = [[
-                'label' => (string) ($data['description'] ?? 'Payment'),
+                'label' => $description,
                 'price' => $amount,
                 'quantity' => 1.0,
                 'amount' => $amount,
@@ -335,7 +533,8 @@ class CheckoutManager
             'email' => (string) ($receipt['email'] ?? $request->user()->email ?? ''),
             'amounts' => $amounts,
             'currency' => $currency,
-            'description' => (string) ($data['description'] ?? 'Payment'),
+            'description' => $description,
+            'subscription' => is_array($data['subscription'] ?? null) ? $data['subscription'] : null,
         ];
     }
 
@@ -381,15 +580,7 @@ class CheckoutManager
 
         return is_string($message) && $message !== ''
             ? $message
-            : 'Unable to charge saved card.';
-    }
-
-    private function testFee(float $amount): float
-    {
-        $commission = (float) config('payhub.gateways.test.commission', 0);
-        $vat = (float) config('payhub.gateways.test.vat', 1);
-
-        return round($amount * $commission * $vat, 2);
+            : __('Unable to charge saved card.');
     }
 
     private function findOrder(string|int $id): ?Model
