@@ -217,7 +217,7 @@ POST /api/cloudpayments/fail
 
 The callbacks are protected with the CloudPayments `Content-HMAC` signature.
 
-To reuse the table names from an existing app, set:
+To choose the payment table names before the first migration, set:
 
 ```dotenv
 PAYHUB_CARDS_TABLE=cards

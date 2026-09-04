@@ -9,10 +9,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (Schema::hasTable(config('payhub.tables.transactions', 'payhub_transactions'))) {
-            return;
-        }
-
         Schema::create(config('payhub.tables.transactions', 'payhub_transactions'), function (Blueprint $table): void {
             $table->id();
             $table->foreignId('user_id')->constrained($this->userTable())->cascadeOnDelete();
@@ -21,7 +17,7 @@ return new class extends Migration
             $table->decimal('fee', 10, 2)->default(0);
             $table->decimal('vat', 10, 2)->nullable();
             $table->boolean('status')->default(false);
-            $table->string('gateway')->nullable();
+            $table->string('gateway');
             $table->timestamps();
 
             $table->index(['user_id', 'status']);
@@ -30,10 +26,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (! config('payhub.drop_tables_on_rollback', false)) {
-            return;
-        }
-
         Schema::dropIfExists(config('payhub.tables.transactions', 'payhub_transactions'));
     }
 

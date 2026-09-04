@@ -329,7 +329,7 @@ class CloudPaymentsController
             'fee' => $this->fee($request),
             'vat' => $this->vat($request),
             'status' => $status,
-            'gateway' => 'CloudPayments',
+            'gateway' => 'cloud_payments',
         ];
     }
 

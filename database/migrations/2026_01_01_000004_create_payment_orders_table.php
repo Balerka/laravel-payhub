@@ -9,10 +9,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (Schema::hasTable(config('payhub.tables.orders', 'payhub_orders'))) {
-            return;
-        }
-
         Schema::create(config('payhub.tables.orders', 'payhub_orders'), function (Blueprint $table): void {
             $table->id();
             $table->string('idempotency_key', 64)->nullable()->unique();
@@ -28,10 +24,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (! config('payhub.drop_tables_on_rollback', false)) {
-            return;
-        }
-
         Schema::dropIfExists(config('payhub.tables.orders', 'payhub_orders'));
     }
 

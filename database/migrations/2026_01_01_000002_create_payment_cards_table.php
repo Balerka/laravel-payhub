@@ -9,10 +9,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (Schema::hasTable(config('payhub.tables.cards', 'payhub_cards'))) {
-            return;
-        }
-
         Schema::create(config('payhub.tables.cards', 'payhub_cards'), function (Blueprint $table): void {
             $table->id();
             $table->foreignId('user_id')->constrained($this->userTable())->cascadeOnDelete();
@@ -29,10 +25,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        if (! config('payhub.drop_tables_on_rollback', false)) {
-            return;
-        }
-
         Schema::dropIfExists(config('payhub.tables.cards', 'payhub_cards'));
     }
 

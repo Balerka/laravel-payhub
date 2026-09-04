@@ -23,6 +23,10 @@ class GatewayFees
 
     private static function configKey(?string $gateway): string
     {
-        return GatewayResolver::forTransaction($gateway) ?: 'test';
+        $resolvedGateway = $gateway === null
+            ? GatewayResolver::active()
+            : GatewayResolver::forTransaction($gateway);
+
+        return $resolvedGateway ?: 'test';
     }
 }

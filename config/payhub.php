@@ -22,16 +22,12 @@ return [
 
     'gateway' => env('PAYHUB_GATEWAY', 'test'),
 
-    'legacy_gateway' => env('PAYHUB_LEGACY_GATEWAY', env('PAYHUB_GATEWAY', 'test')),
-
     'tables' => [
         'cards' => env('PAYHUB_CARDS_TABLE', 'payhub_cards'),
         'orders' => env('PAYHUB_ORDERS_TABLE', 'payhub_orders'),
         'transactions' => env('PAYHUB_TRANSACTIONS_TABLE', 'payhub_transactions'),
         'subscriptions' => env('PAYHUB_SUBSCRIPTIONS_TABLE', 'payhub_subscriptions'),
     ],
-
-    'drop_tables_on_rollback' => filter_var(env('PAYHUB_DROP_TABLES_ON_ROLLBACK', false), FILTER_VALIDATE_BOOL),
 
     'gateways' => [
         'test' => [

@@ -112,7 +112,7 @@ class TestPaymentsController
                 'fee' => $fee,
                 'vat' => GatewayFees::vat($fee, 'test'),
                 'status' => (bool) ($data['status'] ?? true),
-                'gateway' => 'TestPayments',
+                'gateway' => 'test',
             ],
         );
         $transaction = $transactionModel::query()

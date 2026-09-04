@@ -96,8 +96,7 @@ class SubscriptionManager
         }
 
         $shouldCancelCloudPayments = $localGateways->contains('cloud_payments')
-            || GatewayResolver::active() === 'cloud_payments'
-            || GatewayResolver::legacy() === 'cloud_payments';
+            || GatewayResolver::active() === 'cloud_payments';
 
         if ($shouldCancelCloudPayments) {
             $remoteSubscriptions = $this->cloudPayments->getSubscriptions($user->getKey());
@@ -269,7 +268,7 @@ class SubscriptionManager
     ): ?Model
     {
         $subscriptionModel = PayhubModels::subscription();
-        $resolvedGateway = $gateway ?: $this->gatewayCode() ?: GatewayResolver::legacy();
+        $resolvedGateway = GatewayResolver::forTransaction($gateway ?: $this->gatewayCode());
 
         if ($resolvedGateway === '') {
             return null;
@@ -438,7 +437,7 @@ class SubscriptionManager
             }
         }
 
-        return $this->gatewayCode() ?: GatewayResolver::legacy();
+        return $this->gatewayCode();
     }
 
     private function currency(Request $request, string $fallback = ''): string

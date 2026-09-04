@@ -164,7 +164,7 @@ class CheckoutManager
             (string) $transactionId,
             (float) ($model['TotalFee'] ?? $response['TotalFee'] ?? 0),
             is_numeric($vat) ? (float) $vat : null,
-            'CloudPayments',
+            'cloud_payments',
         );
 
         return $transaction
@@ -181,7 +181,7 @@ class CheckoutManager
                 'test-saved-card-'.$order->id.'-'.$card->id,
                 $fee,
                 GatewayFees::vat($fee, 'test'),
-                'TestSavedCard',
+                'test',
             )
             : $this->attachedTransaction($order, 'test');
 

@@ -22,12 +22,14 @@ class SubscriptionsControllerTest extends TestCase
             'description' => 'Premium monthly',
             'interval' => 'Month',
             'period' => 1,
+            'gateway' => 'test',
             'status' => true,
             'next_transaction_at' => now()->addMonth(),
         ]);
         Subscription::query()->create([
             'user_id' => $otherUser->id,
             'subscription_id' => 'sub_other',
+            'gateway' => 'test',
             'status' => true,
         ]);
 

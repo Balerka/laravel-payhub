@@ -571,7 +571,7 @@ class CloudPaymentsControllerTest extends TestCase
             'amount' => 990,
             'fee' => 0,
             'status' => true,
-            'gateway' => 'TestPayments',
+            'gateway' => 'test',
         ]);
 
         $this->assertTrue($this->app->make(PaymentManager::class)->confirm($transaction));

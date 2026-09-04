@@ -9,20 +9,9 @@ class GatewayResolver
         return self::normalize((string) config('payhub.gateway', 'test'));
     }
 
-    public static function legacy(): string
-    {
-        $legacyGateway = config('payhub.legacy_gateway');
-
-        return self::normalize((string) ($legacyGateway ?: self::active()));
-    }
-
     public static function forTransaction(?string $gateway): string
     {
-        if ($gateway === null || $gateway === '') {
-            return self::legacy();
-        }
-
-        return self::normalize($gateway);
+        return self::normalize((string) $gateway);
     }
 
     public static function enabled(?string $gateway = null): bool
@@ -40,14 +29,6 @@ class GatewayResolver
     private static function normalize(string $gateway): string
     {
         $gateway = strtolower($gateway);
-
-        if (str_contains($gateway, 'cloud')) {
-            return 'cloud_payments';
-        }
-
-        if (str_contains($gateway, 'test')) {
-            return 'test';
-        }
 
         return array_key_exists($gateway, (array) config('payhub.gateways', []))
             ? $gateway
