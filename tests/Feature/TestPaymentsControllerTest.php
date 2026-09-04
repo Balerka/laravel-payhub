@@ -97,4 +97,61 @@ class TestPaymentsControllerTest extends TestCase
         $this->assertSame(1, Transaction::query()->count());
         $this->assertSame($transactionId, $order->refresh()->transaction_id);
     }
+
+    public function test_failed_test_payment_does_not_store_transaction_by_default(): void
+    {
+        $user = User::query()->create(['name' => 'User']);
+        $order = Order::query()->create([
+            'user_id' => $user->id,
+            'amount' => 1200,
+            'currency' => 'RUB',
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson('/payhub/payments/test/pay', [
+                'order_id' => $order->id,
+                'amount' => 1200,
+                'currency' => 'RUB',
+                'description' => 'Failed test payment',
+                'status' => false,
+            ])
+            ->assertOk()
+            ->assertJsonPath('transaction', null);
+
+        $this->assertSame(0, Transaction::query()->count());
+        $this->assertSame('failed', $order->refresh()->status);
+        $this->assertNull($order->transaction_id);
+    }
+
+    public function test_failed_test_payment_stores_transaction_when_enabled(): void
+    {
+        config()->set('payhub.store_failed_transactions', true);
+
+        $user = User::query()->create(['name' => 'User']);
+        $order = Order::query()->create([
+            'user_id' => $user->id,
+            'amount' => 1200,
+            'currency' => 'RUB',
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson('/payhub/payments/test/pay', [
+                'order_id' => $order->id,
+                'amount' => 1200,
+                'currency' => 'RUB',
+                'description' => 'Stored failed test payment',
+                'status' => false,
+                'transaction_id' => 'test_failed_stored',
+            ])
+            ->assertOk()
+            ->assertJsonPath('transaction.status', false);
+
+        $transaction = Transaction::query()->where('transaction_id', 'test_failed_stored')->firstOrFail();
+
+        $this->assertFalse($transaction->status);
+        $this->assertSame($transaction->id, $order->refresh()->transaction_id);
+        $this->assertSame('failed', $order->status);
+    }
 }

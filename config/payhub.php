@@ -22,6 +22,8 @@ return [
 
     'gateway' => env('PAYHUB_GATEWAY', 'test'),
 
+    'store_failed_transactions' => filter_var(env('PAYHUB_STORE_FAILED_TRANSACTIONS', false), FILTER_VALIDATE_BOOL),
+
     'tables' => [
         'cards' => env('PAYHUB_CARDS_TABLE', 'payhub_cards'),
         'orders' => env('PAYHUB_ORDERS_TABLE', 'payhub_orders'),

@@ -354,46 +354,81 @@ class CloudPaymentsController
         }
 
         return DB::transaction(function () use ($request, $subscription, $transactionId, $amount): ?Model {
-            $transactionModel = PayhubModels::transaction();
-            $transaction = $transactionModel::query()->firstOrCreate(
-                ['transaction_id' => $transactionId],
-                $this->transactionData($request, (int) $subscription->user_id, $amount, false),
-            );
-            $transaction = $transactionModel::query()
-                ->whereKey($transaction->getKey())
-                ->lockForUpdate()
-                ->firstOrFail();
+            $storesFailedTransactions = (bool) config('payhub.store_failed_transactions', false);
+            $transaction = $storesFailedTransactions
+                ? $this->storeFailedTransaction($request, $subscription, $transactionId, $amount)
+                : null;
 
-            if (
-                (int) $transaction->user_id !== (int) $subscription->user_id
-                || $transaction->status
-                || ! $this->amountsMatch((float) $transaction->amount, $amount)
-                || GatewayResolver::forTransaction($transaction->gateway) !== 'cloud_payments'
-            ) {
+            if ($storesFailedTransactions && ! $transaction) {
                 return null;
             }
 
-            $orderModel = PayhubModels::order();
-            $existingOrder = $orderModel::query()
-                ->where('transaction_id', $transaction->id)
-                ->first();
+            $order = $this->createSubscriptionOrder(
+                $request,
+                $subscription,
+                $amount,
+                hash('sha256', 'cloud_payments:failed:'.$transactionId),
+            );
 
-            if ($existingOrder) {
-                return $existingOrder;
+            if (! $order || ! $transaction) {
+                return $order;
             }
 
-            $order = $this->createSubscriptionOrder($request, $subscription, $amount);
-
-            if ($order) {
-                $order->update(['transaction_id' => $transaction->id]);
+            if ($order->transaction_id !== null) {
+                return (int) $order->transaction_id === (int) $transaction->getKey()
+                    ? $order
+                    : null;
             }
+
+            $usedByAnotherOrder = $order->newQuery()
+                ->where('transaction_id', $transaction->getKey())
+                ->whereKeyNot($order->getKey())
+                ->exists();
+
+            if ($usedByAnotherOrder) {
+                return null;
+            }
+
+            $order->update(['transaction_id' => $transaction->getKey()]);
 
             return $order;
         });
     }
 
-    private function createSubscriptionOrder(Request $request, Model $subscription, ?float $amount = null): ?Model
-    {
+    private function storeFailedTransaction(
+        Request $request,
+        Model $subscription,
+        string $transactionId,
+        float $amount,
+    ): ?Model {
+        $transactionModel = PayhubModels::transaction();
+        $transaction = $transactionModel::query()->firstOrCreate(
+            ['transaction_id' => $transactionId],
+            $this->transactionData($request, (int) $subscription->user_id, $amount, false),
+        );
+        $transaction = $transactionModel::query()
+            ->whereKey($transaction->getKey())
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        if (
+            (int) $transaction->user_id !== (int) $subscription->user_id
+            || (bool) $transaction->status
+            || ! $this->amountsMatch((float) $transaction->amount, $amount)
+            || GatewayResolver::forTransaction($transaction->gateway) !== 'cloud_payments'
+        ) {
+            return null;
+        }
+
+        return $transaction;
+    }
+
+    private function createSubscriptionOrder(
+        Request $request,
+        Model $subscription,
+        ?float $amount = null,
+        ?string $idempotencyKey = null,
+    ): ?Model {
         $amount ??= $this->amount($request) ?: (float) ($subscription->amount ?? 0);
 
         if ($amount <= 0) {
@@ -401,18 +436,35 @@ class CloudPaymentsController
         }
 
         $orderModel = PayhubModels::order();
-        $order = $orderModel::query()->create([
+        $currency = $this->currency($request, (string) ($subscription->currency ?? ''));
+        $attributes = [
             'user_id' => $subscription->user_id,
             'amount' => $amount,
-            'currency' => $this->currency($request, (string) ($subscription->currency ?? '')),
+            'currency' => $currency,
             'receipt' => [
                 'description' => $this->stringInput($request, 'description', 'Description') ?? $subscription->description,
                 'subscription_id' => $subscription->subscription_id,
             ],
             'status' => 'pending',
-        ]);
+        ];
+        $order = $idempotencyKey === null
+            ? $orderModel::query()->create($attributes)
+            : $orderModel::query()->createOrFirst(['idempotency_key' => $idempotencyKey], $attributes);
+        $wasRecentlyCreated = $order->wasRecentlyCreated;
+        $order = $orderModel::query()->whereKey($order->getKey())->lockForUpdate()->firstOrFail();
 
-        event(new SubscriptionOrderCreated($subscription, $order));
+        if (
+            (int) $order->user_id !== (int) $subscription->user_id
+            || ! $this->amountsMatch((float) $order->amount, $amount)
+            || strtoupper((string) $order->currency) !== $currency
+            || (string) data_get($order->receipt, 'subscription_id') !== (string) $subscription->subscription_id
+        ) {
+            return null;
+        }
+
+        if ($wasRecentlyCreated) {
+            event(new SubscriptionOrderCreated($subscription, $order));
+        }
 
         return $order;
     }

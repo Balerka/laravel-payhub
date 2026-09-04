@@ -196,6 +196,12 @@ Select the active gateway with:
 PAYHUB_GATEWAY=test
 ```
 
+Failed payment attempts are not stored in the transactions table by default. To store them with `status=false`, set:
+
+```dotenv
+PAYHUB_STORE_FAILED_TRANSACTIONS=true
+```
+
 The published checkout component supports the `test` gateway and CloudPayments widget flow.
 When the current user has saved cards, the checkout component lists them, selects the default card, and sends the selected `card_id` for saved-card payment. Users can still choose a new-card payment, which opens the CloudPayments widget.
 

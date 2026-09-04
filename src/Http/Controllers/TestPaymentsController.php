@@ -29,6 +29,18 @@ class TestPaymentsController
         $result = DB::transaction(function () use ($request, $data): array {
             $userId = (int) $request->user()->id;
             $order = $this->resolveOrder($userId, $data);
+
+            if (! $this->isSuccessful($data) && ! config('payhub.store_failed_transactions', false)) {
+                $order = $this->storeFailedOrderWithoutTransaction($userId, $data, $order);
+
+                return [
+                    'transaction' => null,
+                    'order' => $order,
+                    'card' => null,
+                    'subscription' => null,
+                ];
+            }
+
             $transaction = $order ? $this->attachedTransaction($order, $data) : null;
             $transaction ??= $this->storeTransaction($userId, $data);
 
@@ -43,6 +55,15 @@ class TestPaymentsController
                 }
             } else {
                 $order = $this->storeOrder($userId, $data, $transaction);
+            }
+
+            if (! $transaction->status) {
+                return [
+                    'transaction' => $transaction,
+                    'order' => $order,
+                    'card' => null,
+                    'subscription' => null,
+                ];
             }
 
             $card = $this->storeCard($request->user()->id, $data);
@@ -88,7 +109,9 @@ class TestPaymentsController
             __('Checkout request conflicts with an existing payment.'),
         );
         abort_if(
-            $order->transaction_id === null && $order->status !== 'pending',
+            $order->transaction_id === null
+            && $order->status !== 'pending'
+            && ($this->isSuccessful($data) || $order->status !== 'failed'),
             409,
             __('Checkout request conflicts with an existing payment.'),
         );
@@ -111,7 +134,7 @@ class TestPaymentsController
                 'amount' => $amount,
                 'fee' => $fee,
                 'vat' => GatewayFees::vat($fee, 'test'),
-                'status' => (bool) ($data['status'] ?? true),
+                'status' => $this->isSuccessful($data),
                 'gateway' => 'test',
             ],
         );
@@ -210,9 +233,47 @@ class TestPaymentsController
     private function transactionMatches(Model $transaction, int $userId, array $data): bool
     {
         return (int) $transaction->user_id === $userId
-            && (bool) $transaction->status === (bool) ($data['status'] ?? true)
+            && (bool) $transaction->status === $this->isSuccessful($data)
             && $this->amountsMatch((float) $transaction->amount, (float) $data['amount'])
             && GatewayResolver::forTransaction($transaction->gateway) === 'test';
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function storeFailedOrderWithoutTransaction(int $userId, array $data, ?Model $order): Model
+    {
+        if ($order) {
+            abort_if(
+                $order->transaction_id !== null || ! in_array($order->status, ['pending', 'failed'], true),
+                409,
+                __('Checkout request conflicts with an existing payment.'),
+            );
+
+            if ($order->status === 'pending') {
+                $order->update(['status' => 'failed']);
+            }
+
+            return $order;
+        }
+
+        $orderModel = PayhubModels::order();
+
+        return $orderModel::query()->create([
+            'user_id' => $userId,
+            'amount' => (float) $data['amount'],
+            'currency' => $this->currency($data),
+            'receipt' => $this->receipt($data),
+            'status' => 'failed',
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function isSuccessful(array $data): bool
+    {
+        return (bool) ($data['status'] ?? true);
     }
 
     private function amountsMatch(float $first, float $second): bool

@@ -516,7 +516,7 @@ class CloudPaymentsControllerTest extends TestCase
         $this->assertSame(1, Transaction::query()->where('transaction_id', 'cp_renew')->count());
     }
 
-    public function test_cloud_payments_recurring_fail_is_idempotent_by_transaction_id(): void
+    public function test_cloud_payments_recurring_fail_is_idempotent_without_storing_transaction(): void
     {
         config()->set('payhub.gateways.cloud_payments.secret', 'secret');
 
@@ -545,7 +545,40 @@ class CloudPaymentsControllerTest extends TestCase
             ->assertJsonPath('code', 0);
 
         $this->assertSame(1, Order::query()->where('status', 'failed')->count());
-        $this->assertSame(1, Transaction::query()->where('transaction_id', 'cp_failed_renewal')->where('status', false)->count());
+        $this->assertNull(Order::query()->where('status', 'failed')->value('transaction_id'));
+        $this->assertSame(0, Transaction::query()->where('transaction_id', 'cp_failed_renewal')->count());
+    }
+
+    public function test_cloud_payments_recurring_fail_stores_transaction_when_enabled(): void
+    {
+        config()->set('payhub.gateways.cloud_payments.secret', 'secret');
+        config()->set('payhub.store_failed_transactions', true);
+
+        $user = User::query()->create(['name' => 'User']);
+        Subscription::query()->create([
+            'user_id' => $user->id,
+            'subscription_id' => 'sub_stored_failure',
+            'amount' => 990,
+            'currency' => 'RUB',
+            'gateway' => 'cloud_payments',
+            'status' => true,
+        ]);
+
+        $this->postCloudPaymentsJson('/api/cloudpayments/fail', [
+            'AccountId' => $user->id,
+            'SubscriptionId' => 'sub_stored_failure',
+            'TransactionId' => 'cp_stored_failure',
+            'Amount' => 990,
+            'Currency' => 'RUB',
+        ])
+            ->assertOk()
+            ->assertJsonPath('code', 0);
+
+        $transaction = Transaction::query()->where('transaction_id', 'cp_stored_failure')->firstOrFail();
+        $order = Order::query()->where('transaction_id', $transaction->id)->firstOrFail();
+
+        $this->assertFalse($transaction->status);
+        $this->assertSame('failed', $order->status);
     }
 
     public function test_payment_manager_treats_test_transaction_as_already_confirmed(): void
