@@ -88,8 +88,10 @@ Payhub does not manage products or catalogs. Your application owns product selec
 - `amount` - required payment amount
 - `currency` - optional ISO currency code, defaults to `PAYHUB_CURRENCY`
 - `description` - required gateway payment description supplied by the host project
+- `unit` - optional localized measurement unit used when Payhub creates the default receipt item
 - `receipt` - optional full receipt object with `items`, `email`, `amounts`, `currency`, `description`, and any gateway-specific receipt data
 - `items` - shorthand for `receipt.items` if you do not need to pass the full receipt object
+- `subscription.unit` - optional localized measurement unit for recurring payment receipts
 
 Payhub ships with embedded English and Russian dictionaries inside the published React files, so the component can pick its own translations from `locale` without touching host project files.
 

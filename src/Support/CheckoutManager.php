@@ -45,7 +45,8 @@ class CheckoutManager
         $currency = strtoupper((string) ($data['currency'] ?? config('payhub.currency', config('app.currency', 'RUB'))));
         $amount = (float) $data['amount'];
         $description = (string) $data['description'];
-        $receipt = $this->receipt($request, $data, $amount, $currency, $description);
+        $unit = (string) ($data['unit'] ?? 'payment');
+        $receipt = $this->receipt($request, $data, $amount, $currency, $description, $unit);
         $receipt['_payhub'] = [
             'card_id' => $card?->getKey(),
         ];
@@ -487,7 +488,7 @@ class CheckoutManager
             'accountId' => (int) $request->user()->id,
             'orderId' => (int) $order->id,
             'email' => (string) ($request->user()->email ?? ''),
-            'unit' => 'payment',
+            'unit' => (string) data_get($receipt, 'items.0.measurementUnit', 'payment'),
             'receipt' => $receipt,
             'items' => $receipt['items'] ?? [],
             'subscription' => is_array($receipt['subscription'] ?? null) ? $receipt['subscription'] : null,
@@ -498,7 +499,14 @@ class CheckoutManager
      * @param  array<string, mixed>  $data
      * @return array{items: array<int, array{label: string, price: float, quantity: float, amount: float, vat: mixed, method: int, object: int, measurementUnit: string}>, email: string, amounts: array<string, float>, currency: string, description: string, subscription: array<string, mixed>|null}
      */
-    private function receipt(Request $request, array $data, float $amount, string $currency, string $description): array
+    private function receipt(
+        Request $request,
+        array $data,
+        float $amount,
+        string $currency,
+        string $description,
+        string $unit,
+    ): array
     {
         $receipt = is_array($data['receipt'] ?? null) ? $data['receipt'] : [];
         $receiptItems = is_array($receipt['items'] ?? null) ? $receipt['items'] : ($data['items'] ?? []);
@@ -517,7 +525,7 @@ class CheckoutManager
                 'vat' => null,
                 'method' => 1,
                 'object' => 4,
-                'measurementUnit' => 'payment',
+                'measurementUnit' => $unit,
             ]];
         }
 

@@ -111,6 +111,7 @@ class CloudPaymentsClient
         ?int    $period,
         array   $additionalParams = [],
         ?string $requestId = null,
+        string  $measurementUnit = 'items',
     ): ?array
     {
         $email = (string)($user->email ?? '');
@@ -126,7 +127,7 @@ class CloudPaymentsClient
             'Interval' => $interval,
             'Period' => $period,
             'Email' => $email,
-            'CustomerReceipt' => $this->receipt($description, $amount, $email),
+            'CustomerReceipt' => $this->receipt($description, $amount, $email, measurementUnit: $measurementUnit),
         ]);
 
         $response = $this->sendRequest('/subscriptions/create', $params, $requestId);
@@ -242,7 +243,13 @@ class CloudPaymentsClient
      * @param array<string, mixed> $receipt
      * @return array{Items: array<int, array{Label: string, Price: float, Quantity: float, Amount: float, Vat: mixed, Method: int, Object: int, MeasurementUnit: string}>, Email: string, Amounts: array<string, float>}
      */
-    private function receipt(string $description, float $amount, string $email, array $receipt = []): array
+    private function receipt(
+        string $description,
+        float $amount,
+        string $email,
+        array $receipt = [],
+        string $measurementUnit = 'items',
+    ): array
     {
         $items = is_array($receipt['items'] ?? null) ? $receipt['items'] : [];
         $receiptItems = $items === []
@@ -254,7 +261,7 @@ class CloudPaymentsClient
                 'vat' => null,
                 'method' => 1,
                 'object' => 4,
-                'measurementUnit' => 'payment',
+                'measurementUnit' => $measurementUnit,
             ]]
             : $items;
 
@@ -267,7 +274,7 @@ class CloudPaymentsClient
                 'Vat' => $item['vat'] ?? null,
                 'Method' => (int)($item['method'] ?? 1),
                 'Object' => (int)($item['object'] ?? 4),
-                'MeasurementUnit' => (string)($item['measurementUnit'] ?? 'payment'),
+                'MeasurementUnit' => (string)($item['measurementUnit'] ?? 'items'),
             ], $receiptItems),
             'Email' => (string)($receipt['email'] ?? $email),
             'Amounts' => $this->receiptAmounts($receipt, $amount),

@@ -132,6 +132,7 @@ class CheckoutControllerTest extends TestCase
                 'amount' => 990,
                 'currency' => 'RUB',
                 'description' => 'Premium',
+                'unit' => 'шт.',
                 'subscription' => [
                     'amount' => 1990,
                     'currency' => 'RUB',
@@ -139,17 +140,21 @@ class CheckoutControllerTest extends TestCase
                     'interval' => 'Month',
                     'period' => 1,
                     'start_in' => '7 Day',
+                    'unit' => 'месяц',
                     'metadata' => ['reference' => 'plan-10'],
                 ],
             ])
             ->assertOk()
-            ->assertJsonPath('ok', true);
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('payment.unit', 'шт.');
 
         $order = Order::query()->where('user_id', $user->id)->firstOrFail();
 
         $this->assertSame('Premium recurrent', $order->receipt['subscription']['description']);
         $this->assertEquals(1990.0, $order->receipt['subscription']['amount']);
+        $this->assertSame('месяц', $order->receipt['subscription']['unit']);
         $this->assertSame('plan-10', $order->receipt['subscription']['metadata']['reference']);
+        $this->assertSame('шт.', $order->receipt['items'][0]['measurementUnit']);
     }
 
     public function test_checkout_rejects_invalid_subscription_schedule(): void

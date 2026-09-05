@@ -344,9 +344,10 @@ class CloudPaymentsControllerTest extends TestCase
                 ?int $period,
                 array $additionalParams = [],
                 ?string $requestId = null,
+                string $measurementUnit = 'items',
             ): ?array {
                 $this->createCalls++;
-                $this->payload = compact('token', 'startIn', 'amount', 'description', 'interval', 'period', 'additionalParams', 'requestId');
+                $this->payload = compact('token', 'startIn', 'amount', 'description', 'interval', 'period', 'additionalParams', 'requestId', 'measurementUnit');
 
                 return [
                     'Id' => 'sub_from_order',
@@ -370,6 +371,7 @@ class CloudPaymentsControllerTest extends TestCase
                     'interval' => 'Month',
                     'period' => 1,
                     'start_in' => '7 Day',
+                    'unit' => 'месяц',
                 ],
             ],
             'status' => 'pending',
@@ -393,6 +395,7 @@ class CloudPaymentsControllerTest extends TestCase
         $this->assertEquals(1990.0, $cloudPayments->payload['amount']);
         $this->assertSame('Premium recurrent', $cloudPayments->payload['description']);
         $this->assertSame('RUB', $cloudPayments->payload['additionalParams']['Currency']);
+        $this->assertSame('месяц', $cloudPayments->payload['measurementUnit']);
         $this->assertNotEmpty($cloudPayments->payload['requestId']);
         $this->assertSame(1, $cloudPayments->createCalls);
         $this->assertSame(1, Subscription::query()->where('subscription_id', 'sub_from_order')->count());
@@ -426,6 +429,7 @@ class CloudPaymentsControllerTest extends TestCase
                 ?int $period,
                 array $additionalParams = [],
                 ?string $requestId = null,
+                string $measurementUnit = 'items',
             ): ?array {
                 $this->createCalls++;
                 $this->requestIds[] = $requestId;

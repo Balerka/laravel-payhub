@@ -47,6 +47,7 @@ export type CheckoutPayment = {
     amount: number;
     currency?: string;
     description?: string | null;
+    unit?: string;
     receipt?: CheckoutReceipt | null;
     items?: CheckoutItem[];
     subscription?: Record<string, unknown> | null;
@@ -337,6 +338,7 @@ export function Checkout({
     amount,
     currency,
     description = null,
+    unit,
     receipt = null,
     items = [],
     subscription = null,
@@ -376,6 +378,7 @@ export function Checkout({
         amount,
         currency: currency ?? resolvedCurrencyCode,
         description,
+        unit,
         receipt,
         items,
     };
@@ -451,6 +454,7 @@ export function Checkout({
                 amount,
                 currency: payment.currency,
                 description: paymentDescription,
+                unit,
                 receipt: resolvedReceipt,
                 items,
                 subscription,
@@ -469,6 +473,7 @@ export function Checkout({
                 amount,
                 currency: payment.currency,
                 description: paymentDescription,
+                unit,
                 receipt: resolvedReceipt,
                 items,
                 subscription,

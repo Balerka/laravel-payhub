@@ -210,7 +210,7 @@ class SubscriptionManager
     }
 
     /**
-     * @param  array{amount: float, description: string, currency?: string|null, interval?: string|null, period?: int|null, start_in?: string|null, params?: array<string, mixed>, subscription_id?: string|null}  $data
+     * @param  array{amount: float, description: string, currency?: string|null, interval?: string|null, period?: int|null, start_in?: string|null, unit?: string|null, params?: array<string, mixed>, subscription_id?: string|null}  $data
      */
     private function createCloudPaymentsSubscription(Request $request, Model $order, array $data, ?string $token): ?Model
     {
@@ -239,6 +239,7 @@ class SubscriptionManager
             $period,
             $additionalParams,
             $this->subscriptionRequestId($order),
+            (string) ($data['unit'] ?? 'payment'),
         );
 
         if (! $response || empty($response['Id'])) {
@@ -256,7 +257,7 @@ class SubscriptionManager
     }
 
     /**
-     * @param  array{amount: float, description: string, currency?: string|null, interval?: string|null, period?: int|null, start_in?: string|null, params?: array<string, mixed>, subscription_id?: string|null}  $data
+     * @param  array{amount: float, description: string, currency?: string|null, interval?: string|null, period?: int|null, start_in?: string|null, unit?: string|null, params?: array<string, mixed>, subscription_id?: string|null}  $data
      */
     private function storeSubscription(
         string $subscriptionId,
@@ -311,7 +312,7 @@ class SubscriptionManager
     }
 
     /**
-     * @return array{amount: float, description: string, currency?: string|null, interval?: string|null, period?: int|null, start_in?: string|null, params?: array<string, mixed>, subscription_id?: string|null, next_transaction_at?: string|null}|null
+     * @return array{amount: float, description: string, currency?: string|null, interval?: string|null, period?: int|null, start_in?: string|null, unit?: string|null, params?: array<string, mixed>, subscription_id?: string|null, next_transaction_at?: string|null}|null
      */
     private function subscriptionDataFromOrder(Model $order): ?array
     {
@@ -335,6 +336,7 @@ class SubscriptionManager
             'interval' => isset($subscription['interval']) ? (string) $subscription['interval'] : null,
             'period' => isset($subscription['period']) ? (int) $subscription['period'] : null,
             'start_in' => isset($subscription['start_in']) ? (string) $subscription['start_in'] : null,
+            'unit' => isset($subscription['unit']) ? (string) $subscription['unit'] : null,
             'params' => is_array($subscription['params'] ?? null) ? $subscription['params'] : [],
             'subscription_id' => isset($subscription['subscription_id']) ? (string) $subscription['subscription_id'] : null,
             'next_transaction_at' => isset($subscription['next_transaction_at']) ? (string) $subscription['next_transaction_at'] : null,
