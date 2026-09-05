@@ -43,11 +43,12 @@ class CheckoutManager
 
         $card = $this->selectedCard($request, $data['card_id'] ?? null);
         $currency = strtoupper((string) ($data['currency'] ?? config('payhub.currency', config('app.currency', 'RUB'))));
-        $amount = (float) $data['amount'];
-        $description = (string) $data['description'];
-        $quantity = (float) ($data['quantity'] ?? 1);
-        $unit = (string) ($data['unit'] ?? 'payment');
-        $receipt = $this->receipt($request, $data, $amount, $currency, $description, $quantity, $unit);
+        $productItems = $this->receiptItemsFromProducts($data['products']);
+        $amount = $this->receiptItemsAmount($productItems);
+        $description = filled($data['description'] ?? null)
+            ? (string) $data['description']
+            : $this->receiptItemsDescription($productItems);
+        $receipt = $this->receipt($request, $data, $productItems, $amount, $currency, $description);
         $receipt['_payhub'] = [
             'card_id' => $card?->getKey(),
         ];
@@ -498,16 +499,16 @@ class CheckoutManager
 
     /**
      * @param  array<string, mixed>  $data
+     * @param  array<int, array{label: string, price: float, quantity: float, amount: float, vat: mixed, method: int, object: int, measurementUnit: string}>  $productItems
      * @return array{items: array<int, array{label: string, price: float, quantity: float, amount: float, vat: mixed, method: int, object: int, measurementUnit: string}>, email: string, amounts: array<string, float>, currency: string, description: string, subscription: array<string, mixed>|null}
      */
     private function receipt(
         Request $request,
         array $data,
+        array $productItems,
         float $amount,
         string $currency,
         string $description,
-        float $quantity,
-        string $unit,
     ): array
     {
         $receipt = is_array($data['receipt'] ?? null) ? $data['receipt'] : [];
@@ -518,18 +519,7 @@ class CheckoutManager
             ->values()
             ->all();
 
-        if ($items === []) {
-            $items = [[
-                'label' => $description,
-                'price' => round($amount / $quantity, 2),
-                'quantity' => $quantity,
-                'amount' => $amount,
-                'vat' => null,
-                'method' => 1,
-                'object' => 4,
-                'measurementUnit' => $unit,
-            ]];
-        }
+        $items = $items === [] ? $productItems : $items;
 
         $itemsAmount = round(array_sum(array_column($items, 'amount')), 2);
 
@@ -544,8 +534,72 @@ class CheckoutManager
             'amounts' => $amounts,
             'currency' => $currency,
             'description' => $description,
-            'subscription' => is_array($data['subscription'] ?? null) ? $data['subscription'] : null,
+            'subscription' => $this->subscriptionData($data['subscription'] ?? null),
         ];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $products
+     * @return array<int, array{label: string, price: float, quantity: float, amount: float, vat: mixed, method: int, object: int, measurementUnit: string}>
+     */
+    private function receiptItemsFromProducts(array $products): array
+    {
+        return collect($products)
+            ->map(fn (array $product): array => $this->normalizeReceiptItem([
+                'label' => $product['name'],
+                'price' => $product['price'],
+                'quantity' => $product['quantity'] ?? 1,
+                'vat' => $product['vat'] ?? null,
+                'method' => $product['method'] ?? 1,
+                'object' => $product['object'] ?? 4,
+                'measurementUnit' => $product['unit'] ?? 'payment',
+            ]))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{amount: float}>  $items
+     */
+    private function receiptItemsAmount(array $items): float
+    {
+        $amount = round(array_sum(array_column($items, 'amount')), 2);
+
+        abort_if($amount < 0.01, 422, __('Payment amount must be at least 0.01.'));
+
+        return $amount;
+    }
+
+    /**
+     * @param  array<int, array{label: string}>  $items
+     */
+    private function receiptItemsDescription(array $items): string
+    {
+        return mb_substr(implode(', ', array_column($items, 'label')), 0, 255);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $subscription
+     * @return array<string, mixed>|null
+     */
+    private function subscriptionData(?array $subscription): ?array
+    {
+        if ($subscription === null) {
+            return null;
+        }
+
+        $items = $this->receiptItemsFromProducts($subscription['products'] ?? []);
+        unset($subscription['products']);
+
+        $subscription['amount'] = $this->receiptItemsAmount($items);
+        $subscription['description'] = filled($subscription['description'] ?? null)
+            ? (string) $subscription['description']
+            : $this->receiptItemsDescription($items);
+        $subscription['quantity'] = (float) $items[0]['quantity'];
+        $subscription['unit'] = (string) $items[0]['measurementUnit'];
+        $subscription['items'] = $items;
+
+        return $subscription;
     }
 
     /**

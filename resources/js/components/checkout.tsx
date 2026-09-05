@@ -17,6 +17,16 @@ export type CheckoutGateway = {
     publicId?: string | null;
 };
 
+export type CheckoutProduct = {
+    name: string;
+    price: number;
+    quantity?: number;
+    unit?: string;
+    vat?: unknown;
+    method?: number;
+    object?: number;
+};
+
 export type CheckoutItem = {
     label: string;
     price: number;
@@ -45,16 +55,15 @@ export type CheckoutReceipt = {
 
 export type CheckoutPayment = {
     amount: number;
+    products: CheckoutProduct[];
     currency?: string;
     description?: string | null;
-    quantity?: number;
-    unit?: string;
     receipt?: CheckoutReceipt | null;
     items?: CheckoutItem[];
     subscription?: Record<string, unknown> | null;
 };
 
-export type CheckoutProps = CheckoutPayment & {
+export type CheckoutProps = Omit<CheckoutPayment, 'amount'> & {
     cards?: PaymentCard[];
     selectedCardId?: number | null;
     endpoints?: CheckoutEndpoints;
@@ -243,24 +252,39 @@ function formatCardBrand(brand: string): string {
     return brand.replace(/[_-]+/g, ' ').trim().toUpperCase();
 }
 
+function receiptItemsFromProducts(products: CheckoutProduct[]): ReceiptPreviewItem[] {
+    return products.map((product) => {
+        const quantity = product.quantity ?? 1;
+
+        return {
+            label: product.name,
+            price: product.price,
+            quantity,
+            amount: Math.round(product.price * quantity * 100) / 100,
+            vat: product.vat ?? null,
+            method: product.method ?? 1,
+            object: product.object ?? 4,
+            measurementUnit: product.unit ?? 'payment',
+        };
+    });
+}
+
 function receiptPreviewItems(
     items: CheckoutItem[],
     amount: number,
     description: string | null,
-    quantity = 1,
-    measurementUnit = 'payment',
 ): ReceiptPreviewItem[] {
     if (items.length === 0) {
         return [
             {
                 label: description ?? 'Payment',
-                price: Math.round((amount / quantity) * 100) / 100,
-                quantity,
+                price: amount,
+                quantity: 1,
                 amount,
                 vat: null,
                 method: 1,
                 object: 4,
-                measurementUnit,
+                measurementUnit: 'payment',
             },
         ];
     }
@@ -342,11 +366,9 @@ function testSubscriptionPayload(subscription: Record<string, unknown> | null | 
 }
 
 export function Checkout({
-    amount,
+    products,
     currency,
     description = null,
-    quantity,
-    unit,
     receipt = null,
     items = [],
     subscription = null,
@@ -382,21 +404,24 @@ export function Checkout({
     const gatewayCode = resolvedGateway.code ?? 'test';
     const gatewayEnabled = resolvedGateway.enabled ?? (gatewayCode === 'test');
     const testMode = resolvedGateway.testMode ?? (gatewayCode === 'test');
+    const productReceiptItems = receiptItemsFromProducts(products);
+    const amount = Math.round(productReceiptItems.reduce((total, item) => total + item.amount, 0) * 100) / 100;
+    const resolvedDescription = description ?? products.map((product) => product.name).join(', ').slice(0, 255);
     const payment: CheckoutPayment = {
         amount,
+        products,
         currency: currency ?? resolvedCurrencyCode,
-        description,
-        quantity,
-        unit,
+        description: resolvedDescription,
         receipt,
         items,
+        subscription,
     };
     const resolvedReceipt = resolveReceipt({
         receipt,
         items,
         amount,
         currency: payment.currency,
-        description,
+        description: resolvedDescription,
     });
     const paymentDescription = resolvedReceipt.description ?? 'Payment';
 
@@ -460,11 +485,9 @@ export function Checkout({
 
         try {
             const fingerprint = JSON.stringify({
-                amount,
+                products,
                 currency: payment.currency,
                 description: paymentDescription,
-                quantity,
-                unit,
                 receipt: resolvedReceipt,
                 items,
                 subscription,
@@ -480,11 +503,9 @@ export function Checkout({
 
             const orderResponse = await axios.post<OrderResponse>(resolvedEndpoints.storeOrder, {
                 idempotency_key: checkoutAttempt.current.idempotencyKey,
-                amount,
                 currency: payment.currency,
                 description: paymentDescription,
-                quantity,
-                unit,
+                products,
                 receipt: resolvedReceipt,
                 items,
                 subscription,
@@ -492,8 +513,9 @@ export function Checkout({
             });
 
             const orderId = orderResponse.data.order?.id;
+            const orderAmount = orderResponse.data.order?.amount;
 
-            if (!orderId) {
+            if (!orderId || orderAmount === undefined) {
                 throw new Error(resolvedMessages.checkout.unableCreateOrder);
             }
 
@@ -501,7 +523,10 @@ export function Checkout({
                 setSuccessMessage(resolvedMessages.checkout.paymentCompleted);
                 if (testMode) {
                     setTestPaymentDebug({
-                        receiptItems: receiptPreviewItems(resolvedReceipt.items ?? [], amount, description, quantity, unit),
+                        receiptItems:
+                            resolvedReceipt.items && resolvedReceipt.items.length > 0
+                                ? receiptPreviewItems(resolvedReceipt.items, orderAmount, resolvedDescription)
+                                : productReceiptItems,
                         order: orderResponse.data.order ? { ...orderResponse.data.order } : null,
                         transaction: (orderResponse.data as { transaction?: Record<string, unknown> }).transaction ?? null,
                     });
@@ -537,7 +562,7 @@ export function Checkout({
                     {
                         publicId: widgetPayment.publicId,
                         description: widgetPayment.description,
-                        amount: widgetPayment.amount ?? amount,
+                        amount: widgetPayment.amount ?? orderAmount,
                         currency: widgetPayment.currency ?? payment.currency,
                         accountId: widgetPayment.accountId,
                         invoiceId: widgetPayment.orderId ?? orderId,
@@ -548,18 +573,9 @@ export function Checkout({
                         data: {
                             CloudPayments: {
                                 CustomerReceipt: {
-                                    Items: ((widgetPayment.receipt?.items as CheckoutItem[] | undefined) ?? widgetPayment.items ?? [
-                                        {
-                                            label: widgetPayment.description ?? 'Payment',
-                                            price: widgetPayment.price ?? amount,
-                                            quantity: widgetPayment.quantity ?? quantity ?? 1,
-                                            amount: widgetPayment.amount ?? amount,
-                                            vat: null,
-                                            method: 1,
-                                            object: 4,
-                                            measurementUnit: widgetPayment.unit ?? 'payment',
-                                        },
-                                    ]).map((item) => ({
+                                    Items: ((widgetPayment.receipt?.items as CheckoutItem[] | undefined) ??
+                                        widgetPayment.items ??
+                                        productReceiptItems).map((item) => ({
                                         label: item.label,
                                         price: item.price,
                                         quantity: item.quantity,
@@ -571,7 +587,7 @@ export function Checkout({
                                     })),
                                     email: widgetPayment.email,
                                     amounts: {
-                                        electronic: widgetPayment.amount ?? amount,
+                                        electronic: widgetPayment.amount ?? orderAmount,
                                     },
                                 },
                             },
@@ -609,7 +625,7 @@ export function Checkout({
 
             const testPaymentResponse = await axios.post<TestPaymentResponse>(resolvedEndpoints.testPay, {
                 order_id: orderId,
-                amount,
+                amount: orderAmount,
                 currency: payment.currency,
                 description: paymentDescription,
                 receipt: resolvedReceipt,
@@ -624,7 +640,10 @@ export function Checkout({
             setSuccessMessage(resolvedMessages.checkout.paymentCompleted);
             setTestPaymentDebug({
                 receiptItems: (
-                    orderResponse.data.payment?.items ?? receiptPreviewItems(resolvedReceipt.items ?? [], amount, description, quantity, unit)
+                    orderResponse.data.payment?.items ??
+                    (resolvedReceipt.items && resolvedReceipt.items.length > 0
+                        ? receiptPreviewItems(resolvedReceipt.items, orderAmount, resolvedDescription)
+                        : productReceiptItems)
                 ).map((item) => ({
                     label: item.label,
                     price: item.price,

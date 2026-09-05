@@ -77,23 +77,20 @@ import { Checkout, PaymentCards, PayhubRefunds, PayhubSubscriptions } from '@/pa
 Basic usage:
 
 ```tsx
-<Checkout amount={990} currency="RUB" description="Premium" locale="ru" />
+<Checkout products={[{ name: 'Premium', price: 990, quantity: 1, unit: 'item' }]} currency="RUB" locale="ru" />
 <PaymentCards locale="ru" />
 <PayhubSubscriptions locale="ru" />
 <PayhubRefunds locale="ru" />
 ```
 
-Payhub does not manage products or catalogs. Your application owns product selection and passes payment details into `Checkout`:
+Payhub does not manage catalogs. Your application selects products and passes their payment data into `Checkout`; Payhub calculates the total and builds the receipt:
 
-- `amount` - required payment amount
+- `products` - required list of products; each product has `name`, `price`, and optional `quantity`, `unit`, `vat`, `method`, and `object`
 - `currency` - optional ISO currency code, defaults to `PAYHUB_CURRENCY`
-- `description` - required gateway payment description supplied by the host project
-- `quantity` - optional quantity used when Payhub creates the default receipt item, defaults to `1`
-- `unit` - optional localized measurement unit used when Payhub creates the default receipt item
+- `description` - optional gateway description; defaults to the joined product names
 - `receipt` - optional full receipt object with `items`, `email`, `amounts`, `currency`, `description`, and any gateway-specific receipt data
 - `items` - shorthand for `receipt.items` if you do not need to pass the full receipt object
-- `subscription.quantity` - optional quantity for recurring payment receipts, defaults to `1`
-- `subscription.unit` - optional localized measurement unit for recurring payment receipts
+- `subscription.products` - required product list for recurring payments; Payhub independently calculates the recurring amount and receipt
 
 Payhub ships with embedded English and Russian dictionaries inside the published React files, so the component can pick its own translations from `locale` without touching host project files.
 
@@ -127,19 +124,11 @@ import { Checkout } from '@/pages/payhub'
 export default function CheckoutPage() {
   return (
     <Checkout
-      amount={990}
       currency="RUB"
-      description="Premium"
-      receipt={{
-        email: 'customer@example.com',
-        currency: 'RUB',
-        description: 'Premium',
-        amounts: { electronic: 990 },
-        items: [
-          { label: 'Premium', price: 590, quantity: 1, amount: 590 },
-          { label: 'Boost', price: 400, quantity: 1, amount: 400 },
-        ],
-      }}
+      products={[
+        { name: 'Premium', price: 590, quantity: 1, unit: 'item' },
+        { name: 'Boost', price: 200, quantity: 2, unit: 'item' },
+      ]}
       locale="ru"
     />
   )
@@ -153,6 +142,7 @@ import { Checkout } from '@/pages/payhub'
 import ruPayhub from '@/locales/ru/payhub.json'
 
 <Checkout
+  products={[{ name: 'Premium', price: 990 }]}
   locale="ru"
   messages={{
     ...ruPayhub,
@@ -170,7 +160,7 @@ Routes are registered with the `payhub.` name prefix and use `/payhub` as the de
 
 - `GET /payhub/cards/data` returns cards as JSON.
 - `GET /payhub/checkout/data` returns gateway metadata and saved cards as JSON.
-- `POST /payhub/checkout/orders` idempotently creates a pending order from the required `idempotency_key`, `amount`, `description`, optional `currency`, `receipt`, and subscription metadata. Payhub stores the full receipt object on the order. When `card_id` is passed with the `cloud_payments` gateway, Payhub charges that saved card token through CloudPayments.
+- `POST /payhub/checkout/orders` idempotently creates a pending order from the required `idempotency_key` and `products`, plus optional `currency`, `description`, `receipt`, and subscription metadata. Payhub calculates the amount and stores the generated receipt on the order. When `card_id` is passed with the `cloud_payments` gateway, Payhub charges that saved card token through CloudPayments.
 - `DELETE /payhub/checkout/orders/{order}` cancels a pending order.
 - `PUT /payhub/cards/default` sets the default card.
 - `DELETE /payhub/cards/{card}` deletes a card owned by the current user.

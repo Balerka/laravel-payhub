@@ -65,20 +65,10 @@ class CheckoutControllerTest extends TestCase
         $this->actingAs($user)
             ->postJson('/payhub/checkout/orders', [
                 'idempotency_key' => 'checkout-pending-order',
-                'amount' => 990,
                 'currency' => 'RUB',
-                'description' => 'Premium',
-                'items' => [
-                    [
-                        'label' => 'Premium',
-                        'price' => 590,
-                        'quantity' => 1,
-                    ],
-                    [
-                        'label' => 'Boost',
-                        'price' => 400,
-                        'quantity' => 1,
-                    ],
+                'products' => [
+                    $this->product('Premium', 590),
+                    $this->product('Boost', 400),
                 ],
             ])
             ->assertOk()
@@ -86,7 +76,7 @@ class CheckoutControllerTest extends TestCase
             ->assertJsonPath('order.amount', 990)
             ->assertJsonPath('order.currency', 'RUB')
             ->assertJsonPath('payment.gateway', 'test')
-            ->assertJsonPath('payment.description', 'Premium')
+            ->assertJsonPath('payment.description', 'Premium, Boost')
             ->assertJsonPath('payment.items.0.label', 'Premium')
             ->assertJsonPath('payment.items.1.label', 'Boost');
 
@@ -104,9 +94,8 @@ class CheckoutControllerTest extends TestCase
         $this->actingAs($user)
             ->postJson('/payhub/checkout/orders', [
                 'idempotency_key' => 'checkout-invalid-receipt',
-                'amount' => 990,
                 'currency' => 'RUB',
-                'description' => 'Premium',
+                'products' => [$this->product()],
                 'items' => [
                     [
                         'label' => 'Premium',
@@ -129,20 +118,14 @@ class CheckoutControllerTest extends TestCase
         $this->actingAs($user)
             ->postJson('/payhub/checkout/orders', [
                 'idempotency_key' => 'checkout-subscription-payload',
-                'amount' => 990,
                 'currency' => 'RUB',
-                'description' => 'Premium',
-                'quantity' => 3,
-                'unit' => 'шт.',
+                'products' => [$this->product('Premium', 330, 3, 'шт.')],
                 'subscription' => [
-                    'amount' => 1990,
                     'currency' => 'RUB',
-                    'description' => 'Premium recurrent',
-                    'quantity' => 2,
+                    'products' => [$this->product('Premium recurrent', 995, 2, 'месяц')],
                     'interval' => 'Month',
                     'period' => 1,
                     'start_in' => '7 Day',
-                    'unit' => 'месяц',
                     'metadata' => ['reference' => 'plan-10'],
                 ],
             ])
@@ -173,13 +156,11 @@ class CheckoutControllerTest extends TestCase
         $this->actingAs($user)
             ->postJson('/payhub/checkout/orders', [
                 'idempotency_key' => 'checkout-invalid-subscription',
-                'amount' => 990,
                 'currency' => 'RUB',
-                'description' => 'Premium',
+                'products' => [$this->product()],
                 'subscription' => [
-                    'amount' => 1990,
                     'currency' => 'RUB',
-                    'description' => 'Premium recurrent',
+                    'products' => [$this->product('Premium recurrent', 1990)],
                     'interval' => 'Year',
                     'period' => 1,
                     'start_in' => 'whenever',
@@ -249,9 +230,8 @@ class CheckoutControllerTest extends TestCase
         $this->actingAs($user)
             ->postJson('/payhub/checkout/orders', [
                 'idempotency_key' => 'checkout-saved-cloud-card',
-                'amount' => 990,
                 'currency' => 'RUB',
-                'description' => 'Premium',
+                'products' => [$this->product()],
                 'card_id' => $card->id,
             ])
             ->assertOk()
@@ -305,9 +285,8 @@ class CheckoutControllerTest extends TestCase
         ]);
         $payload = [
             'idempotency_key' => 'checkout-idempotent-saved-card',
-            'amount' => 990,
             'currency' => 'RUB',
-            'description' => 'Premium',
+            'products' => [$this->product()],
             'card_id' => $card->id,
         ];
 
@@ -372,13 +351,11 @@ class CheckoutControllerTest extends TestCase
         ]);
         $payload = [
             'idempotency_key' => 'checkout-subscription-failure',
-            'amount' => 990,
             'currency' => 'RUB',
-            'description' => 'Premium',
+            'products' => [$this->product()],
             'card_id' => $card->id,
             'subscription' => [
-                'amount' => 990,
-                'description' => 'Premium recurrent',
+                'products' => [$this->product('Premium recurrent', 990)],
                 'interval' => 'Month',
                 'period' => 1,
             ],
@@ -424,9 +401,8 @@ class CheckoutControllerTest extends TestCase
         $this->actingAs($user)
             ->postJson('/payhub/checkout/orders', [
                 'idempotency_key' => 'checkout-failed-cloud-card',
-                'amount' => 990,
                 'currency' => 'RUB',
-                'description' => 'Premium',
+                'products' => [$this->product()],
                 'card_id' => $card->id,
             ])
             ->assertUnprocessable()
@@ -435,6 +411,18 @@ class CheckoutControllerTest extends TestCase
 
         $this->assertSame('pending', Order::query()->firstOrFail()->status);
         $this->assertSame(0, Transaction::query()->count());
+    }
+
+    /**
+     * @return array{name: string, price: float, quantity: float, unit: string}
+     */
+    private function product(
+        string $name = 'Premium',
+        float $price = 990,
+        float $quantity = 1,
+        string $unit = 'payment',
+    ): array {
+        return compact('name', 'price', 'quantity', 'unit');
     }
 
     /**

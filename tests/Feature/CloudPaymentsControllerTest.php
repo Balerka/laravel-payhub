@@ -346,9 +346,10 @@ class CloudPaymentsControllerTest extends TestCase
                 ?string $requestId = null,
                 string $measurementUnit = 'items',
                 float $quantity = 1,
+                array $receipt = [],
             ): ?array {
                 $this->createCalls++;
-                $this->payload = compact('token', 'startIn', 'amount', 'description', 'interval', 'period', 'additionalParams', 'requestId', 'quantity', 'measurementUnit');
+                $this->payload = compact('token', 'startIn', 'amount', 'description', 'interval', 'period', 'additionalParams', 'requestId', 'quantity', 'measurementUnit', 'receipt');
 
                 return [
                     'Id' => 'sub_from_order',
@@ -374,6 +375,18 @@ class CloudPaymentsControllerTest extends TestCase
                     'period' => 1,
                     'start_in' => '7 Day',
                     'unit' => 'месяц',
+                    'items' => [
+                        [
+                            'label' => 'Premium recurrent',
+                            'price' => 995,
+                            'quantity' => 2,
+                            'amount' => 1990,
+                            'vat' => null,
+                            'method' => 1,
+                            'object' => 4,
+                            'measurementUnit' => 'месяц',
+                        ],
+                    ],
                 ],
             ],
             'status' => 'pending',
@@ -399,6 +412,8 @@ class CloudPaymentsControllerTest extends TestCase
         $this->assertSame('RUB', $cloudPayments->payload['additionalParams']['Currency']);
         $this->assertSame(2.0, $cloudPayments->payload['quantity']);
         $this->assertSame('месяц', $cloudPayments->payload['measurementUnit']);
+        $this->assertSame(2, $cloudPayments->payload['receipt']['items'][0]['quantity']);
+        $this->assertSame('месяц', $cloudPayments->payload['receipt']['items'][0]['measurementUnit']);
         $this->assertNotEmpty($cloudPayments->payload['requestId']);
         $this->assertSame(1, $cloudPayments->createCalls);
         $this->assertSame(1, Subscription::query()->where('subscription_id', 'sub_from_order')->count());
@@ -434,6 +449,7 @@ class CloudPaymentsControllerTest extends TestCase
                 ?string $requestId = null,
                 string $measurementUnit = 'items',
                 float $quantity = 1,
+                array $receipt = [],
             ): ?array {
                 $this->createCalls++;
                 $this->requestIds[] = $requestId;

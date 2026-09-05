@@ -99,6 +99,7 @@ class CloudPaymentsClient
 
     /**
      * @param array<string, mixed> $additionalParams
+     * @param array<string, mixed> $receipt
      * @return array<string, mixed>|null
      */
     public function createSubscription(
@@ -113,6 +114,7 @@ class CloudPaymentsClient
         ?string $requestId = null,
         string  $measurementUnit = 'items',
         float   $quantity = 1,
+        array   $receipt = [],
     ): ?array
     {
         $email = (string)($user->email ?? '');
@@ -132,6 +134,7 @@ class CloudPaymentsClient
                 $description,
                 $amount,
                 $email,
+                $receipt,
                 quantity: $quantity,
                 measurementUnit: $measurementUnit,
             ),
