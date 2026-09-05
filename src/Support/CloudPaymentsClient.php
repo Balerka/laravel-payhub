@@ -112,6 +112,7 @@ class CloudPaymentsClient
         array   $additionalParams = [],
         ?string $requestId = null,
         string  $measurementUnit = 'items',
+        float   $quantity = 1,
     ): ?array
     {
         $email = (string)($user->email ?? '');
@@ -127,7 +128,13 @@ class CloudPaymentsClient
             'Interval' => $interval,
             'Period' => $period,
             'Email' => $email,
-            'CustomerReceipt' => $this->receipt($description, $amount, $email, measurementUnit: $measurementUnit),
+            'CustomerReceipt' => $this->receipt(
+                $description,
+                $amount,
+                $email,
+                quantity: $quantity,
+                measurementUnit: $measurementUnit,
+            ),
         ]);
 
         $response = $this->sendRequest('/subscriptions/create', $params, $requestId);
@@ -248,6 +255,7 @@ class CloudPaymentsClient
         float $amount,
         string $email,
         array $receipt = [],
+        float $quantity = 1,
         string $measurementUnit = 'items',
     ): array
     {
@@ -255,8 +263,8 @@ class CloudPaymentsClient
         $receiptItems = $items === []
             ? [[
                 'label' => $description,
-                'price' => $amount,
-                'quantity' => 1,
+                'price' => round($amount / $quantity, 2),
+                'quantity' => $quantity,
                 'amount' => $amount,
                 'vat' => null,
                 'method' => 1,

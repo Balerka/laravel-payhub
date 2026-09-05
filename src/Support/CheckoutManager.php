@@ -45,8 +45,9 @@ class CheckoutManager
         $currency = strtoupper((string) ($data['currency'] ?? config('payhub.currency', config('app.currency', 'RUB'))));
         $amount = (float) $data['amount'];
         $description = (string) $data['description'];
+        $quantity = (float) ($data['quantity'] ?? 1);
         $unit = (string) ($data['unit'] ?? 'payment');
-        $receipt = $this->receipt($request, $data, $amount, $currency, $description, $unit);
+        $receipt = $this->receipt($request, $data, $amount, $currency, $description, $quantity, $unit);
         $receipt['_payhub'] = [
             'card_id' => $card?->getKey(),
         ];
@@ -468,7 +469,7 @@ class CheckoutManager
     }
 
     /**
-     * @return array{gateway: string, publicId: string|null, description: string, quantity: int, price: float, amount: float, currency: string, accountId: int, orderId: int, email: string, unit: string, receipt: array<string, mixed>, items: array<int, array<string, mixed>>, subscription: array<string, mixed>|null}
+     * @return array{gateway: string, publicId: string|null, description: string, quantity: float, price: float, amount: float, currency: string, accountId: int, orderId: int, email: string, unit: string, receipt: array<string, mixed>, items: array<int, array<string, mixed>>, subscription: array<string, mixed>|null}
      */
     private function paymentPayload(Request $request, Model $order, string $description): array
     {
@@ -481,8 +482,8 @@ class CheckoutManager
                 ? config('payhub.gateways.cloud_payments.public_id')
                 : null,
             'description' => $description,
-            'quantity' => 1,
-            'price' => (float) $order->amount,
+            'quantity' => (float) data_get($receipt, 'items.0.quantity', 1),
+            'price' => (float) data_get($receipt, 'items.0.price', $order->amount),
             'amount' => (float) $order->amount,
             'currency' => $order->currency,
             'accountId' => (int) $request->user()->id,
@@ -505,6 +506,7 @@ class CheckoutManager
         float $amount,
         string $currency,
         string $description,
+        float $quantity,
         string $unit,
     ): array
     {
@@ -519,8 +521,8 @@ class CheckoutManager
         if ($items === []) {
             $items = [[
                 'label' => $description,
-                'price' => $amount,
-                'quantity' => 1.0,
+                'price' => round($amount / $quantity, 2),
+                'quantity' => $quantity,
                 'amount' => $amount,
                 'vat' => null,
                 'method' => 1,

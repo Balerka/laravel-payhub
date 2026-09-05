@@ -345,9 +345,10 @@ class CloudPaymentsControllerTest extends TestCase
                 array $additionalParams = [],
                 ?string $requestId = null,
                 string $measurementUnit = 'items',
+                float $quantity = 1,
             ): ?array {
                 $this->createCalls++;
-                $this->payload = compact('token', 'startIn', 'amount', 'description', 'interval', 'period', 'additionalParams', 'requestId', 'measurementUnit');
+                $this->payload = compact('token', 'startIn', 'amount', 'description', 'interval', 'period', 'additionalParams', 'requestId', 'quantity', 'measurementUnit');
 
                 return [
                     'Id' => 'sub_from_order',
@@ -368,6 +369,7 @@ class CloudPaymentsControllerTest extends TestCase
                     'amount' => 1990,
                     'currency' => 'RUB',
                     'description' => 'Premium recurrent',
+                    'quantity' => 2,
                     'interval' => 'Month',
                     'period' => 1,
                     'start_in' => '7 Day',
@@ -395,6 +397,7 @@ class CloudPaymentsControllerTest extends TestCase
         $this->assertEquals(1990.0, $cloudPayments->payload['amount']);
         $this->assertSame('Premium recurrent', $cloudPayments->payload['description']);
         $this->assertSame('RUB', $cloudPayments->payload['additionalParams']['Currency']);
+        $this->assertSame(2.0, $cloudPayments->payload['quantity']);
         $this->assertSame('месяц', $cloudPayments->payload['measurementUnit']);
         $this->assertNotEmpty($cloudPayments->payload['requestId']);
         $this->assertSame(1, $cloudPayments->createCalls);
@@ -430,6 +433,7 @@ class CloudPaymentsControllerTest extends TestCase
                 array $additionalParams = [],
                 ?string $requestId = null,
                 string $measurementUnit = 'items',
+                float $quantity = 1,
             ): ?array {
                 $this->createCalls++;
                 $this->requestIds[] = $requestId;

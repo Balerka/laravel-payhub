@@ -132,11 +132,13 @@ class CheckoutControllerTest extends TestCase
                 'amount' => 990,
                 'currency' => 'RUB',
                 'description' => 'Premium',
+                'quantity' => 3,
                 'unit' => 'шт.',
                 'subscription' => [
                     'amount' => 1990,
                     'currency' => 'RUB',
                     'description' => 'Premium recurrent',
+                    'quantity' => 2,
                     'interval' => 'Month',
                     'period' => 1,
                     'start_in' => '7 Day',
@@ -146,14 +148,19 @@ class CheckoutControllerTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('ok', true)
+            ->assertJsonPath('payment.quantity', 3)
+            ->assertJsonPath('payment.price', 330)
             ->assertJsonPath('payment.unit', 'шт.');
 
         $order = Order::query()->where('user_id', $user->id)->firstOrFail();
 
         $this->assertSame('Premium recurrent', $order->receipt['subscription']['description']);
         $this->assertEquals(1990.0, $order->receipt['subscription']['amount']);
+        $this->assertSame(2, $order->receipt['subscription']['quantity']);
         $this->assertSame('месяц', $order->receipt['subscription']['unit']);
         $this->assertSame('plan-10', $order->receipt['subscription']['metadata']['reference']);
+        $this->assertSame(3.0, (float) $order->receipt['items'][0]['quantity']);
+        $this->assertSame(330.0, (float) $order->receipt['items'][0]['price']);
         $this->assertSame('шт.', $order->receipt['items'][0]['measurementUnit']);
     }
 

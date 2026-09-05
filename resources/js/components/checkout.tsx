@@ -47,6 +47,7 @@ export type CheckoutPayment = {
     amount: number;
     currency?: string;
     description?: string | null;
+    quantity?: number;
     unit?: string;
     receipt?: CheckoutReceipt | null;
     items?: CheckoutItem[];
@@ -242,18 +243,24 @@ function formatCardBrand(brand: string): string {
     return brand.replace(/[_-]+/g, ' ').trim().toUpperCase();
 }
 
-function receiptPreviewItems(items: CheckoutItem[], amount: number, description: string | null): ReceiptPreviewItem[] {
+function receiptPreviewItems(
+    items: CheckoutItem[],
+    amount: number,
+    description: string | null,
+    quantity = 1,
+    measurementUnit = 'payment',
+): ReceiptPreviewItem[] {
     if (items.length === 0) {
         return [
             {
                 label: description ?? 'Payment',
-                price: amount,
-                quantity: 1,
+                price: Math.round((amount / quantity) * 100) / 100,
+                quantity,
                 amount,
                 vat: null,
                 method: 1,
                 object: 4,
-                measurementUnit: 'payment',
+                measurementUnit,
             },
         ];
     }
@@ -338,6 +345,7 @@ export function Checkout({
     amount,
     currency,
     description = null,
+    quantity,
     unit,
     receipt = null,
     items = [],
@@ -378,6 +386,7 @@ export function Checkout({
         amount,
         currency: currency ?? resolvedCurrencyCode,
         description,
+        quantity,
         unit,
         receipt,
         items,
@@ -454,6 +463,7 @@ export function Checkout({
                 amount,
                 currency: payment.currency,
                 description: paymentDescription,
+                quantity,
                 unit,
                 receipt: resolvedReceipt,
                 items,
@@ -473,6 +483,7 @@ export function Checkout({
                 amount,
                 currency: payment.currency,
                 description: paymentDescription,
+                quantity,
                 unit,
                 receipt: resolvedReceipt,
                 items,
@@ -490,7 +501,7 @@ export function Checkout({
                 setSuccessMessage(resolvedMessages.checkout.paymentCompleted);
                 if (testMode) {
                     setTestPaymentDebug({
-                        receiptItems: receiptPreviewItems(resolvedReceipt.items ?? [], amount, description),
+                        receiptItems: receiptPreviewItems(resolvedReceipt.items ?? [], amount, description, quantity, unit),
                         order: orderResponse.data.order ? { ...orderResponse.data.order } : null,
                         transaction: (orderResponse.data as { transaction?: Record<string, unknown> }).transaction ?? null,
                     });
@@ -541,7 +552,7 @@ export function Checkout({
                                         {
                                             label: widgetPayment.description ?? 'Payment',
                                             price: widgetPayment.price ?? amount,
-                                            quantity: 1,
+                                            quantity: widgetPayment.quantity ?? quantity ?? 1,
                                             amount: widgetPayment.amount ?? amount,
                                             vat: null,
                                             method: 1,
@@ -612,7 +623,9 @@ export function Checkout({
 
             setSuccessMessage(resolvedMessages.checkout.paymentCompleted);
             setTestPaymentDebug({
-                receiptItems: (orderResponse.data.payment?.items ?? receiptPreviewItems(resolvedReceipt.items ?? [], amount, description)).map((item) => ({
+                receiptItems: (
+                    orderResponse.data.payment?.items ?? receiptPreviewItems(resolvedReceipt.items ?? [], amount, description, quantity, unit)
+                ).map((item) => ({
                     label: item.label,
                     price: item.price,
                     quantity: item.quantity,

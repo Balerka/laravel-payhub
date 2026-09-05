@@ -210,7 +210,7 @@ class SubscriptionManager
     }
 
     /**
-     * @param  array{amount: float, description: string, currency?: string|null, interval?: string|null, period?: int|null, start_in?: string|null, unit?: string|null, params?: array<string, mixed>, subscription_id?: string|null}  $data
+     * @param  array{amount: float, description: string, currency?: string|null, quantity?: float|null, interval?: string|null, period?: int|null, start_in?: string|null, unit?: string|null, params?: array<string, mixed>, subscription_id?: string|null}  $data
      */
     private function createCloudPaymentsSubscription(Request $request, Model $order, array $data, ?string $token): ?Model
     {
@@ -238,8 +238,9 @@ class SubscriptionManager
             $interval,
             $period,
             $additionalParams,
-            $this->subscriptionRequestId($order),
-            (string) ($data['unit'] ?? 'payment'),
+            requestId: $this->subscriptionRequestId($order),
+            measurementUnit: (string) ($data['unit'] ?? 'payment'),
+            quantity: (float) ($data['quantity'] ?? 1),
         );
 
         if (! $response || empty($response['Id'])) {
@@ -257,7 +258,7 @@ class SubscriptionManager
     }
 
     /**
-     * @param  array{amount: float, description: string, currency?: string|null, interval?: string|null, period?: int|null, start_in?: string|null, unit?: string|null, params?: array<string, mixed>, subscription_id?: string|null}  $data
+     * @param  array{amount: float, description: string, currency?: string|null, quantity?: float|null, interval?: string|null, period?: int|null, start_in?: string|null, unit?: string|null, params?: array<string, mixed>, subscription_id?: string|null}  $data
      */
     private function storeSubscription(
         string $subscriptionId,
@@ -312,7 +313,7 @@ class SubscriptionManager
     }
 
     /**
-     * @return array{amount: float, description: string, currency?: string|null, interval?: string|null, period?: int|null, start_in?: string|null, unit?: string|null, params?: array<string, mixed>, subscription_id?: string|null, next_transaction_at?: string|null}|null
+     * @return array{amount: float, description: string, currency?: string|null, quantity?: float|null, interval?: string|null, period?: int|null, start_in?: string|null, unit?: string|null, params?: array<string, mixed>, subscription_id?: string|null, next_transaction_at?: string|null}|null
      */
     private function subscriptionDataFromOrder(Model $order): ?array
     {
@@ -333,6 +334,7 @@ class SubscriptionManager
             'amount' => $amount,
             'description' => $description,
             'currency' => isset($subscription['currency']) ? (string) $subscription['currency'] : null,
+            'quantity' => isset($subscription['quantity']) ? (float) $subscription['quantity'] : null,
             'interval' => isset($subscription['interval']) ? (string) $subscription['interval'] : null,
             'period' => isset($subscription['period']) ? (int) $subscription['period'] : null,
             'start_in' => isset($subscription['start_in']) ? (string) $subscription['start_in'] : null,
