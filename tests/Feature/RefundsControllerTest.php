@@ -19,6 +19,7 @@ class RefundsControllerTest extends TestCase
             'transaction_id' => 'cp_user',
             'amount' => 990,
             'fee' => 39,
+            'vat' => 8.58,
             'status' => true,
             'gateway' => 'cloud_payments',
         ]);
@@ -34,6 +35,7 @@ class RefundsControllerTest extends TestCase
             'transaction_id' => 'cp_other',
             'amount' => 990,
             'fee' => 39,
+            'vat' => 8.58,
             'status' => true,
             'gateway' => 'cloud_payments',
         ]);
@@ -69,6 +71,7 @@ class RefundsControllerTest extends TestCase
             'transaction_id' => 'cp_user',
             'amount' => 990,
             'fee' => 39,
+            'vat' => 8.58,
             'status' => true,
             'gateway' => 'cloud_payments',
         ]);
@@ -87,9 +90,13 @@ class RefundsControllerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('ok', true)
             ->assertJsonPath('transaction.status', false)
-            ->assertJsonPath('transaction.amount', 0);
+            ->assertJsonPath('transaction.amount', 990);
+
+        $this->assertSame(39.0, (float) $transaction->refresh()->fee);
+        $this->assertSame(8.58, (float) $transaction->vat);
 
         $this->assertFalse($transaction->refresh()->status);
+        $this->assertSame(990.0, (float) $transaction->amount);
         $this->assertSame('cancelled', $order->refresh()->status);
     }
 
@@ -116,6 +123,7 @@ class RefundsControllerTest extends TestCase
             'transaction_id' => 'cp_authorized',
             'amount' => 990,
             'fee' => 39,
+            'vat' => 8.58,
             'status' => true,
             'gateway' => 'cloud_payments',
         ]);
@@ -135,9 +143,13 @@ class RefundsControllerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('ok', true)
             ->assertJsonPath('transaction.status', false)
-            ->assertJsonPath('transaction.amount', 0);
+            ->assertJsonPath('transaction.amount', 990);
+
+        $this->assertSame(39.0, (float) $transaction->refresh()->fee);
+        $this->assertSame(8.58, (float) $transaction->vat);
 
         $this->assertFalse($transaction->refresh()->status);
+        $this->assertSame(990.0, (float) $transaction->amount);
         $this->assertSame('cancelled', $order->refresh()->status);
     }
 
@@ -183,6 +195,7 @@ class RefundsControllerTest extends TestCase
 
         $this->assertFalse($cloudPayments->paymentRequested);
         $this->assertFalse($transaction->refresh()->status);
+        $this->assertSame(990.0, (float) $transaction->amount);
         $this->assertSame('cancelled', $order->refresh()->status);
     }
 }

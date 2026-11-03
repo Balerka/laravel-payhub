@@ -56,9 +56,6 @@ class RefundManager
 
             if ($remainingAmount <= 0) {
                 $lockedTransaction->update([
-                    'amount' => 0,
-                    'fee' => 0,
-                    'vat' => 0,
                     'status' => false,
                 ]);
 
